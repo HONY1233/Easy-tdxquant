@@ -234,12 +234,21 @@ fn replacement_script(
     $expectedHash = {expected_hash}\n\
     $originalHash = {original_hash}\n\
     $processId = {pid}\n\
+    function Get-Sha256([string]$Path) {{\n\
+        $stream = [System.IO.File]::Open($Path, [System.IO.FileMode]::Open, [System.IO.FileAccess]::Read, [System.IO.FileShare]::Read)\n\
+        try {{\n\
+            $sha = [System.Security.Cryptography.SHA256]::Create()\n\
+            try {{\n\
+                return ([System.BitConverter]::ToString($sha.ComputeHash($stream))).Replace('-', '').ToLowerInvariant()\n\
+            }} finally {{ $sha.Dispose() }}\n\
+        }} finally {{ $stream.Dispose() }}\n\
+    }}\n\
     try {{\n\
     'eltdx upgrade started' | Set-Content -LiteralPath $log -Encoding UTF8\n\
     while (Get-Process -Id $processId -ErrorAction SilentlyContinue) {{ Start-Sleep -Milliseconds 300 }}\n\
-    $stagedHash = (Get-FileHash -LiteralPath $staged -Algorithm SHA256).Hash.ToLowerInvariant()\n\
+    $stagedHash = Get-Sha256 $staged\n\
     if ($stagedHash -ne $expectedHash) {{ throw 'Staged file SHA-256 mismatch' }}\n\
-    $backupHash = (Get-FileHash -LiteralPath $backup -Algorithm SHA256).Hash.ToLowerInvariant()\n\
+    $backupHash = Get-Sha256 $backup\n\
     if ($backupHash -ne $originalHash) {{ throw 'Backup file SHA-256 mismatch' }}\n\
     try {{\n\
         $replacementStarted = $false\n\
@@ -257,7 +266,7 @@ fn replacement_script(
             }}\n\
         }}\n\
         if (-not $replacementStarted) {{ throw $moveError }}\n\
-        $installedHash = (Get-FileHash -LiteralPath $target -Algorithm SHA256).Hash.ToLowerInvariant()\n\
+        $installedHash = Get-Sha256 $target\n\
         if ($installedHash -ne $expectedHash) {{ throw 'Installed file SHA-256 mismatch' }}\n\
         'success' | Set-Content -LiteralPath $statusFile -Encoding ASCII\n\
         'eltdx upgrade succeeded' | Add-Content -LiteralPath $log -Encoding UTF8\n\
@@ -267,7 +276,7 @@ fn replacement_script(
         if ($replacementStarted -and (Test-Path -LiteralPath $backup)) {{\n\
             try {{\n\
                 Copy-Item -LiteralPath $backup -Destination $target -Force\n\
-                $restoredHash = (Get-FileHash -LiteralPath $target -Algorithm SHA256).Hash.ToLowerInvariant()\n\
+                $restoredHash = Get-Sha256 $target\n\
                 if ($restoredHash -ne $originalHash) {{ throw 'Restored file SHA-256 mismatch' }}\n\
             }} catch {{\n\
                 $rollbackFailed = $true\n\
@@ -393,6 +402,8 @@ mod tests {
             .find("Move-Item -LiteralPath $staged -Destination $target -Force")
             .unwrap_or(usize::MAX);
         assert!(backup_at < replace_at);
+        assert!(script.contains("function Get-Sha256"));
+        assert!(!script.contains("Get-FileHash"));
         assert!(script.contains("Backup file SHA-256 mismatch"));
         assert!(script.contains("Installed file SHA-256 mismatch"));
         assert!(script.contains("$replacementStarted = $true"));
