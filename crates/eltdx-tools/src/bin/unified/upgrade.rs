@@ -125,9 +125,25 @@ fn install_windows(args: Install) -> Result<()> {
         return Err("升级文件暂存后校验失败，已取消安装。".into());
     }
 
-    let script = replacement_script(&target, &staged, &backup, &log, &status_file, &actual_hash);
+    let original_hash = match create_verified_backup(&target, &backup) {
+        Ok(hash) => hash,
+        Err(error) => {
+            let _ = fs::remove_file(&staged);
+            return Err(error);
+        }
+    };
+    let script = replacement_script(
+        &target,
+        &staged,
+        &backup,
+        &log,
+        &status_file,
+        &actual_hash,
+        &original_hash,
+    );
     if let Err(error) = fs::write(&helper, utf16le_with_bom(&script)) {
         let _ = fs::remove_file(&staged);
+        let _ = fs::remove_file(&backup);
         return Err(error.into());
     }
     let powershell = PathBuf::from(
@@ -155,6 +171,7 @@ fn install_windows(args: Install) -> Result<()> {
     if let Err(error) = spawn_result {
         let _ = fs::remove_file(&staged);
         let _ = fs::remove_file(&helper);
+        let _ = fs::remove_file(&backup);
         return Err(format!("无法启动升级辅助进程: {error}").into());
     }
 
@@ -171,7 +188,7 @@ fn install_windows(args: Install) -> Result<()> {
             "backup": backup,
             "sha256": actual_hash,
             "sha256_verified": true,
-            "next_step": "请保存工作并正常关闭所有 eltdx 窗口/服务。辅助进程会在当前 EXE 退出后先备份旧文件，再替换并再次校验 SHA-256；成功后删除备份，失败尝试恢复并保留备份。若成功后备份清理失败，会保留备份并记录日志。结果写入 status 文件，详情写入 log 文件。"
+            "next_step": "请保存工作并正常关闭所有 eltdx 窗口/服务。旧文件已在安装前备份并校验 SHA-256；辅助进程会在当前 EXE 退出后替换并再次校验新文件，成功后删除备份，失败尝试恢复并保留备份。若成功后备份清理失败，会保留备份并记录日志。结果写入 status 文件，详情写入 log 文件。"
         }))?
     );
     Ok(())
@@ -197,6 +214,7 @@ fn replacement_script(
     log: &Path,
     status_file: &Path,
     expected_hash: &str,
+    original_hash: &str,
 ) -> String {
     let target = ps_quote(target);
     let staged = ps_quote(staged);
@@ -204,6 +222,7 @@ fn replacement_script(
     let log = ps_quote(log);
     let status_file = ps_quote(status_file);
     let expected_hash = ps_quote(Path::new(expected_hash));
+    let original_hash = ps_quote(Path::new(original_hash));
     let pid = std::process::id();
     format!(
         "$ErrorActionPreference = 'Stop'\n\
@@ -213,14 +232,13 @@ fn replacement_script(
     $log = {log}\n\
     $statusFile = {status_file}\n\
     $expectedHash = {expected_hash}\n\
+    $originalHash = {original_hash}\n\
     $processId = {pid}\n\
     try {{\n\
     'eltdx upgrade started' | Set-Content -LiteralPath $log -Encoding UTF8\n\
     while (Get-Process -Id $processId -ErrorAction SilentlyContinue) {{ Start-Sleep -Milliseconds 300 }}\n\
     $stagedHash = (Get-FileHash -LiteralPath $staged -Algorithm SHA256).Hash.ToLowerInvariant()\n\
     if ($stagedHash -ne $expectedHash) {{ throw 'Staged file SHA-256 mismatch' }}\n\
-    $originalHash = (Get-FileHash -LiteralPath $target -Algorithm SHA256).Hash.ToLowerInvariant()\n\
-    Copy-Item -LiteralPath $target -Destination $backup\n\
     $backupHash = (Get-FileHash -LiteralPath $backup -Algorithm SHA256).Hash.ToLowerInvariant()\n\
     if ($backupHash -ne $originalHash) {{ throw 'Backup file SHA-256 mismatch' }}\n\
     try {{\n\
@@ -260,6 +278,17 @@ fn replacement_script(
     exit 1\n\
     }}\n"
     )
+}
+
+#[cfg(any(windows, test))]
+fn create_verified_backup(target: &Path, backup: &Path) -> Result<String> {
+    let original_hash = sha256_file(target)?;
+    fs::copy(target, backup)?;
+    if sha256_file(backup)? != original_hash {
+        let _ = fs::remove_file(backup);
+        return Err("升级备份校验失败，已取消安装。".into());
+    }
+    Ok(original_hash)
 }
 
 #[cfg(any(windows, test))]
@@ -335,7 +364,7 @@ mod tests {
     }
 
     #[test]
-    fn replacement_script_backs_up_before_replacing_and_retains_rollback_copy() {
+    fn replacement_script_verifies_backup_before_replacing() {
         let script = replacement_script(
             Path::new(r"C:\工具\eltdx.exe"),
             Path::new(r"C:\工具\new.exe"),
@@ -343,9 +372,10 @@ mod tests {
             Path::new(r"C:\工具\upgrade.log"),
             Path::new(r"C:\工具\upgrade.status"),
             "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+            "fedcba9876543210fedcba9876543210fedcba9876543210fedcba9876543210",
         );
         let backup_at = script
-            .find("Copy-Item -LiteralPath $target -Destination $backup")
+            .find("if ($backupHash -ne $originalHash)")
             .unwrap_or(usize::MAX);
         let replace_at = script
             .find("Move-Item -LiteralPath $staged -Destination $target -Force")
@@ -366,6 +396,23 @@ mod tests {
             .unwrap_or(usize::MAX);
         assert!(success_at < cleanup_at);
         assert!(script.contains(r"C:\工具\eltdx.exe"));
+    }
+
+    #[test]
+    fn creates_backup_with_matching_hash() {
+        let dir = std::env::temp_dir().join(format!("eltdx-backup-{}", std::process::id()));
+        fs::create_dir_all(&dir).unwrap_or_else(|_| panic!("create temp dir"));
+        let target = dir.join("target.exe");
+        let backup = dir.join("backup.exe");
+        fs::write(&target, b"MZoriginal").unwrap_or_else(|_| panic!("write target"));
+        let hash = create_verified_backup(&target, &backup)
+            .unwrap_or_else(|_| panic!("prepare backup"));
+        assert_eq!(hash, sha256_file(&target).unwrap_or_default());
+        assert_eq!(
+            sha256_file(&backup).unwrap_or_default(),
+            sha256_file(&target).unwrap_or_default()
+        );
+        let _ = fs::remove_dir_all(dir);
     }
 
     #[test]
