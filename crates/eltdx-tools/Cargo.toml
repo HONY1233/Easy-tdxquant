@@ -7,6 +7,10 @@ license-file.workspace = true
 repository.workspace = true
 description = "Native command-line, HTTP and MCP interfaces for eltdx"
 publish = false
+default-run = "eltdx"
+
+[target.'cfg(windows)'.dependencies]
+native-windows-gui = { version = "=1.0.13", default-features = false, features = ["textbox", "timer", "notice"] }
 
 [dependencies]
 eltdx = { path = "../eltdx", features = ["full"] }
@@ -15,6 +19,7 @@ serde_json.workspace = true
 tokio = { workspace = true, features = ["signal"] }
 axum = { version = "=0.8.9", features = ["ws"] }
 clap = { version = "=4.5.50", features = ["derive"] }
+sha2 = "=0.10.9"
 
 [lints]
 workspace = true

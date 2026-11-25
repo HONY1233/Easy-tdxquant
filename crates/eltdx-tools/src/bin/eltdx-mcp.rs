@@ -49,7 +49,12 @@ const DOCS: &[(&str, &str, &str)] = &[
     ("MCP", "mcp", include_str!("../../../../docs/MCP.md")),
 ];
 
+#[allow(dead_code)]
 fn main() -> io::Result<()> {
+    run()
+}
+
+pub fn run() -> io::Result<()> {
     let mut clients = hq::Clients::default();
     let mut output = io::stdout().lock();
     for line in io::stdin().lock().lines() {

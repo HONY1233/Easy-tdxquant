@@ -1,0 +1,262 @@
+name: Windows Unified EXE
+
+on:
+  push:
+    branches: ["codex/unified-exe", "main"]
+    tags: ["v*"]
+  pull_request:
+    branches: ["main"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: windows-unified-exe-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  RUSTFLAGS: "-C target-feature=+crt-static"
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build:
+    runs-on: windows-2025
+    timeout-minutes: 45
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Validate release tag version
+        shell: pwsh
+        env:
+          RELEASE_TAG: ${{ github.ref_type == 'tag' && github.ref_name || '' }}
+        run: |
+          $manifest = Get-Content Cargo.toml -Raw
+          $match = [regex]::Match($manifest, '(?ms)^\[workspace\.package\]\s*.*?^version\s*=\s*"([^"]+)"')
+          if (-not $match.Success) { throw "Could not read workspace version" }
+          $version = $match.Groups[1].Value
+          if ($env:RELEASE_TAG -and $env:RELEASE_TAG -ne "v$version") {
+            throw "Release tag $env:RELEASE_TAG does not match workspace version v$version"
+          }
+          "workspace_version=$version" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+
+      - name: Install Rust toolchain and Windows target
+        shell: pwsh
+        run: |
+          rustup toolchain install 1.89.0 --profile minimal --component clippy,rustfmt
+          rustup default 1.89.0
+          rustup target add x86_64-pc-windows-msvc --toolchain 1.89.0
+
+      - name: Resolve dependency lockfile
+        shell: pwsh
+        run: cargo metadata --format-version 1 | Out-Null
+
+      - name: Format check
+        shell: pwsh
+        run: cargo fmt --all -- --check
+
+      - name: Clippy
+        shell: pwsh
+        run: cargo clippy --locked --target x86_64-pc-windows-msvc -p eltdx-tools --bins --no-deps -- -D warnings -A clippy::needless_question_mark
+
+      - name: Unit tests
+        shell: pwsh
+        run: cargo test --locked --target x86_64-pc-windows-msvc -p eltdx-tools --lib --bins
+
+      - name: Build single static EXE
+        shell: pwsh
+        run: cargo build --locked --release --target x86_64-pc-windows-msvc -p eltdx-tools --bin eltdx
+
+      - name: Smoke test CLI, MCP, HTTP and GUI startup
+        shell: pwsh
+        run: |
+          $exe = Join-Path $PWD "target\x86_64-pc-windows-msvc\release\eltdx.exe"
+          if (-not (Test-Path $exe)) { throw "eltdx.exe was not produced" }
+          & $exe --version
+          if ($LASTEXITCODE -ne 0) { throw "--version failed" }
+          & $exe doctor
+          if ($LASTEXITCODE -ne 0) { throw "doctor failed" }
+          & $exe cli version
+          if ($LASTEXITCODE -ne 0) { throw "cli version failed" }
+          & $exe upgrade status
+          if ($LASTEXITCODE -ne 0) { throw "upgrade status failed" }
+          $request = '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-11-25"}}'
+          $response = $request | & $exe mcp
+          if ($LASTEXITCODE -ne 0 -or $response -notmatch 'eltdx') { throw "MCP initialize failed: $response" }
+
+          $http = Start-Process -FilePath $exe -ArgumentList @('http','--host','127.0.0.1','--port','18080') -PassThru -WindowStyle Hidden
+          try {
+            $healthy = $false
+            for ($i = 0; $i -lt 30; $i++) {
+              try {
+                $health = Invoke-RestMethod -Uri 'http://127.0.0.1:18080/health' -TimeoutSec 2
+                if ($health.ok -eq $true) { $healthy = $true; break }
+              } catch { Start-Sleep -Milliseconds 500 }
+            }
+            if (-not $healthy) { throw "HTTP health check failed" }
+          } finally {
+            if (-not $http.HasExited) { Stop-Process -Id $http.Id -Force }
+            $http.WaitForExit()
+          }
+
+          $gui = Start-Process -FilePath $exe -PassThru
+          try {
+            Start-Sleep -Seconds 3
+            if ($gui.HasExited) { throw "GUI exited during startup with code $($gui.ExitCode)" }
+          } finally {
+            if (-not $gui.HasExited) { Stop-Process -Id $gui.Id -Force }
+            $gui.WaitForExit()
+          }
+
+          $unicodeDir = Join-Path $env:TEMP 'eltdx 中文路径'
+          New-Item -ItemType Directory -Path $unicodeDir -Force | Out-Null
+          $unicodeExe = Join-Path $unicodeDir 'eltdx.exe'
+          Copy-Item $exe $unicodeDir
+          & $unicodeExe doctor | Out-Null
+          if ($LASTEXITCODE -ne 0) { throw "Unicode path check failed" }
+
+          $candidate = Join-Path $unicodeDir 'candidate.exe'
+          Copy-Item $unicodeExe $candidate
+          Add-Content -Path $candidate -Value ([byte[]](1,2,3)) -AsByteStream
+          $candidateHash = (Get-FileHash $candidate -Algorithm SHA256).Hash.ToLowerInvariant()
+          $baselineHash = (Get-FileHash $unicodeExe -Algorithm SHA256).Hash.ToLowerInvariant()
+          & $unicodeExe upgrade install --file $candidate --sha256 ('0' * 64) | Out-Null
+          if ($LASTEXITCODE -eq 0) { throw "Upgrade accepted an incorrect SHA-256" }
+
+          $lock = [System.IO.File]::Open($unicodeExe, [System.IO.FileMode]::Open, [System.IO.FileAccess]::Read, [System.IO.FileShare]::Read)
+          try {
+            $failureJson = (& $unicodeExe upgrade install --file $candidate --sha256 $candidateHash | Out-String) | ConvertFrom-Json
+            if ($LASTEXITCODE -ne 0) { throw "Upgrade staging failed during rollback test" }
+            $failureStatus = ''
+            for ($i = 0; $i -lt 80; $i++) {
+              if (Test-Path $failureJson.status_file) {
+                $failureStatus = (Get-Content $failureJson.status_file -Raw).Trim()
+                if ($failureStatus) { break }
+              }
+              Start-Sleep -Milliseconds 250
+            }
+            if ($failureStatus -ne 'failed') { throw "Locked-target upgrade did not report failure" }
+          } finally {
+            $lock.Dispose()
+          }
+          if ((Get-FileHash $unicodeExe -Algorithm SHA256).Hash.ToLowerInvariant() -ne $baselineHash) {
+            throw "Failed upgrade changed the original executable"
+          }
+          if (-not (Test-Path $failureJson.backup) -or (Get-FileHash $failureJson.backup -Algorithm SHA256).Hash.ToLowerInvariant() -ne $baselineHash) {
+            throw "Failed upgrade did not retain a valid backup"
+          }
+          foreach ($path in @($failureJson.staged_file, $failureJson.helper, $failureJson.log, $failureJson.status_file, $failureJson.backup)) {
+            if (Test-Path $path) { Remove-Item $path -Force }
+          }
+
+          & $unicodeExe upgrade install --file $candidate --sha256 $candidateHash | Out-Null
+          if ($LASTEXITCODE -ne 0) { throw "Upgrade staging failed" }
+          $installed = $false
+          for ($i = 0; $i -lt 60; $i++) {
+            if ((Get-FileHash $unicodeExe -Algorithm SHA256).Hash.ToLowerInvariant() -eq $candidateHash) {
+              $installed = $true
+              break
+            }
+            Start-Sleep -Milliseconds 250
+          }
+          if (-not $installed) { throw "Upgrade helper did not replace the executable" }
+          & $unicodeExe --version | Out-Null
+          if ($LASTEXITCODE -ne 0) { throw "Upgraded executable failed to start" }
+
+      - name: Package EXE, checksums, manifest and usage
+        shell: pwsh
+        run: |
+          $version = $env:workspace_version
+          $exe = Join-Path $PWD "target\x86_64-pc-windows-msvc\release\eltdx.exe"
+          $dist = Join-Path $PWD "dist\eltdx-$version-windows-x86_64"
+          New-Item -ItemType Directory -Path $dist -Force | Out-Null
+          Copy-Item $exe (Join-Path $dist 'eltdx.exe')
+          Copy-Item (Join-Path $PWD 'LICENSE') (Join-Path $dist 'LICENSE')
+          $hash = (Get-FileHash $exe -Algorithm SHA256).Hash.ToLowerInvariant()
+          $usage = @(
+            'eltdx 统一 Windows 工具'
+            ''
+            '直接运行：'
+            '  eltdx.exe'
+            '  无参数启动图形界面；gui 也可启动图形界面。'
+            ''
+            '命令行：'
+            '  eltdx.exe quote sz000001 --depth'
+            '  eltdx.exe cli kline sz000001 --count 100'
+            '  eltdx.exe http --host 127.0.0.1 --port 8000'
+            '  eltdx.exe mcp'
+            '  eltdx.exe doctor'
+            '  eltdx.exe upgrade status'
+            ''
+            'HTTP 文档：http://127.0.0.1:8000/docs'
+            ''
+            'MCP 配置：'
+            '  {"mcpServers":{"eltdx":{"command":"eltdx.exe 的完整路径","args":["mcp"]}}}'
+            ''
+            '本地升级：'
+            '  1. 从可信来源取得新版 eltdx.exe 和官方 SHA-256。'
+            '  2. 保存工作并关闭所有 eltdx 窗口及 HTTP 服务。'
+            '  3. 运行：'
+            '     eltdx.exe upgrade install --file "D:\updates\eltdx.exe" --sha256 "<官方哈希>"'
+            '  4. 保持当前命令窗口打开，辅助脚本会在本程序退出后先备份旧文件，再替换并校验。'
+            '  5. 结果和备份路径会打印在 JSON 中；失败时请保留日志与备份文件。'
+            ''
+            '说明：'
+            '  - 单文件原生 Rust 程序，不依赖 Python。'
+            '  - 仅限个人非商业学习与数据研究，详见 LICENSE。'
+            '  - 升级只安装用户指定的本地文件，不会自动下载或执行远程程序。'
+            '  - 当前为 beta 版本；使用前请核对目标数据与交易日。'
+          )
+          Set-Content -Path (Join-Path $dist 'USAGE.txt') -Value $usage -Encoding utf8
+          $manifest = [ordered]@{
+            product = 'eltdx'
+            version = $version
+            target = 'x86_64-pc-windows-msvc'
+            static_crt = $true
+            commit = $env:GITHUB_SHA
+            built_at_utc = [DateTime]::UtcNow.ToString('o')
+            executable = 'eltdx.exe'
+            sha256 = $hash
+            components = @('gui','cli','http-websocket','mcp-stdio','doctor','local-upgrade')
+            python_required = $false
+            license = 'ELTDX Non-Commercial Learning and Data Research License'
+          }
+          $manifest | ConvertTo-Json -Depth 5 | Set-Content -Path (Join-Path $dist 'build-manifest.json') -Encoding utf8
+          "eltdx.exe  $hash" | Set-Content -Path (Join-Path $dist 'SHA256SUMS.txt') -Encoding ascii
+          $zip = Join-Path $PWD "dist\eltdx-$version-windows-x86_64.zip"
+          Compress-Archive -Path (Join-Path $dist '*') -DestinationPath $zip -Force
+          $zipHash = (Get-FileHash $zip -Algorithm SHA256).Hash.ToLowerInvariant()
+          "eltdx-$version-windows-x86_64.zip  $zipHash" | Set-Content -Path (Join-Path $PWD 'dist\SHA256SUMS.txt') -Encoding ascii
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: eltdx-windows-x86_64
+          path: |
+            dist/*.zip
+            dist/SHA256SUMS.txt
+            dist/*/build-manifest.json
+          if-no-files-found: error
+          retention-days: 90
+
+      - name: Persist resolved lockfile on development branch
+        if: github.ref == 'refs/heads/codex/unified-exe'
+        shell: pwsh
+        run: |
+          git diff --quiet -- Cargo.lock
+          if ($LASTEXITCODE -eq 0) { exit 0 }
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add Cargo.lock
+          git commit -m 'chore: lock unified EXE dependencies'
+          git push origin 'HEAD:codex/unified-exe'
+
+      - name: Create draft GitHub release for version tags
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $version = $env:workspace_version
+          gh release create $env:GITHUB_REF_NAME "dist/eltdx-$version-windows-x86_64.zip" "dist/SHA256SUMS.txt" --title "eltdx $env:GITHUB_REF_NAME" --notes "Windows x86_64 单文件原生 Rust 版。包含 GUI、CLI、HTTP/WebSocket、MCP、环境检查与本地校验升级。请阅读 USAGE.txt 和 LICENSE。" --draft

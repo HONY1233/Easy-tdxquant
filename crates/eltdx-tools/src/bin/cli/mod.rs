@@ -55,8 +55,12 @@ fn run(command: Commands) -> Result<()> {
     Ok(())
 }
 
+#[allow(dead_code)]
 pub fn main() -> ExitCode {
-    let argv: Vec<_> = std::env::args_os().collect();
+    main_with_args(std::env::args_os().collect())
+}
+
+pub fn main_with_args(argv: Vec<OsString>) -> ExitCode {
     let parsed = Cli::try_parse_from(&argv).or_else(|original| {
         let Some(reordered) = reorder_codes(&argv) else {
             return Err(original);

@@ -30,9 +30,16 @@ struct Args {
     log_level: String,
 }
 
+#[allow(dead_code)]
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    let args = Args::parse();
+    run_with_args(std::env::args_os().collect()).await
+}
+
+pub async fn run_with_args(
+    argv: Vec<std::ffi::OsString>,
+) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    let args = Args::parse_from(argv);
     let listener = tokio::net::TcpListener::bind((args.host.as_str(), args.port)).await?;
     let show_startup = matches!(args.log_level.as_str(), "info" | "debug" | "trace");
     let client = tokio::task::spawn_blocking(move || {
