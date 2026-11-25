@@ -245,7 +245,7 @@ fn replacement_script(
     }}\n\
     try {{\n\
     'eltdx upgrade started' | Set-Content -LiteralPath $log -Encoding UTF8\n\
-    while (Get-Process -Id $processId -ErrorAction SilentlyContinue) {{ Start-Sleep -Milliseconds 300 }}\n\
+    while (Get-Process -Id $processId -ErrorAction SilentlyContinue) {{ [System.Threading.Thread]::Sleep(300) }}\n\
     $stagedHash = Get-Sha256 $staged\n\
     if ($stagedHash -ne $expectedHash) {{ throw 'Staged file SHA-256 mismatch' }}\n\
     $backupHash = Get-Sha256 $backup\n\
@@ -262,7 +262,7 @@ fn replacement_script(
             }} catch {{\n\
                 $moveError = $_\n\
                 ('Move attempt failed: ' + $_.Exception.Message) | Add-Content -LiteralPath $log -Encoding UTF8\n\
-                Start-Sleep -Milliseconds 300\n\
+                [System.Threading.Thread]::Sleep(300)\n\
             }}\n\
         }}\n\
         if (-not $replacementStarted) {{ throw $moveError }}\n\
