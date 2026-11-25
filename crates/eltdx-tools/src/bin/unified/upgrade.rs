@@ -405,8 +405,7 @@ mod tests {
         let target = dir.join("target.exe");
         let backup = dir.join("backup.exe");
         fs::write(&target, b"MZoriginal").unwrap_or_else(|_| panic!("write target"));
-        let hash = create_verified_backup(&target, &backup)
-            .unwrap_or_else(|_| panic!("prepare backup"));
+        let hash = create_verified_backup(&target, &backup).unwrap_or_default();
         assert_eq!(hash, sha256_file(&target).unwrap_or_default());
         assert_eq!(
             sha256_file(&backup).unwrap_or_default(),

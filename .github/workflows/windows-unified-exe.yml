@@ -159,8 +159,19 @@ jobs:
           if ((Get-FileHash $unicodeExe -Algorithm SHA256).Hash.ToLowerInvariant() -ne $baselineHash) {
             throw "Failed upgrade changed the original executable"
           }
-          if (-not (Test-Path $failureJson.backup) -or (Get-FileHash $failureJson.backup -Algorithm SHA256).Hash.ToLowerInvariant() -ne $baselineHash) {
-            throw "Failed upgrade did not retain a valid backup"
+          if (-not (Test-Path $failureJson.backup)) {
+            $helperLog = ''
+            if (Test-Path $failureJson.log) { $helperLog = Get-Content $failureJson.log -Raw }
+            $upgradeFiles = Get-ChildItem (Split-Path $failureJson.status_file) -Filter 'eltdx.*' | ForEach-Object { $_.Name + '=' + $_.Length }
+            throw "Failed upgrade did not retain a backup. Files: $($upgradeFiles -join ', '). Log: $helperLog"
+          }
+          try {
+            $backupHash = (Get-FileHash $failureJson.backup -Algorithm SHA256).Hash.ToLowerInvariant()
+          } catch {
+            throw "Failed upgrade left an unreadable backup: $($_.Exception.Message)"
+          }
+          if ($backupHash -ne $baselineHash) {
+            throw "Failed upgrade retained a backup with the wrong hash: $backupHash"
           }
           foreach ($path in @($failureJson.staged_file, $failureJson.helper, $failureJson.log, $failureJson.status_file, $failureJson.backup)) {
             if (Test-Path $path) { Remove-Item $path -Force }

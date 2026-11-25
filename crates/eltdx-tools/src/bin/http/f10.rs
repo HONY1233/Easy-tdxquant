@@ -203,7 +203,7 @@ pub(super) fn call(client: &TdxClient, method: &str, params: Value) -> Result<Va
         }
         _ => {
             if let Some(response) = report(&sdk, method, &args, &section)? {
-                return Ok(project(&response)?);
+                return project(&response);
             }
             if let Some(body) = object_body(method, &args)? {
                 return execute(
