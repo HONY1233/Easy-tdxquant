@@ -177,17 +177,25 @@ jobs:
             if (Test-Path $path) { Remove-Item $path -Force }
           }
 
-          & $unicodeExe upgrade install --file $candidate --sha256 $candidateHash | Out-Null
+          $successJson = ((& $unicodeExe upgrade install --file $candidate --sha256 $candidateHash) -join [Environment]::NewLine) | ConvertFrom-Json
           if ($LASTEXITCODE -ne 0) { throw "Upgrade staging failed" }
-          $installed = $false
-          for ($i = 0; $i -lt 60; $i++) {
-            if ((Get-FileHash $unicodeExe -Algorithm SHA256).Hash.ToLowerInvariant() -eq $candidateHash) {
-              $installed = $true
-              break
+          $successStatus = ''
+          for ($i = 0; $i -lt 120; $i++) {
+            if (Test-Path $successJson.status_file) {
+              $successStatus = (Get-Content $successJson.status_file -Raw).Trim()
+              if ($successStatus) { break }
             }
             Start-Sleep -Milliseconds 250
           }
-          if (-not $installed) { throw "Upgrade helper did not replace the executable" }
+          $installedHash = (Get-FileHash $unicodeExe -Algorithm SHA256).Hash.ToLowerInvariant()
+          $installed = $installedHash -eq $candidateHash
+          if (-not $installed) {
+            $helperLog = ''
+            if (Test-Path $successJson.log) { $helperLog = Get-Content $successJson.log -Raw }
+            $upgradeFiles = Get-ChildItem (Split-Path $successJson.status_file) -Filter 'eltdx.*' | ForEach-Object { $_.Name + '=' + $_.Length }
+            throw "Upgrade helper did not replace the executable. Status: $successStatus. Hash: $installedHash. Files: $($upgradeFiles -join ', '). Log: $helperLog"
+          }
+          if ($successStatus -ne 'success') { throw "Upgrade helper reported '$successStatus' after replacing the executable" }
           & $unicodeExe --version | Out-Null
           if ($LASTEXITCODE -ne 0) { throw "Upgraded executable failed to start" }
 

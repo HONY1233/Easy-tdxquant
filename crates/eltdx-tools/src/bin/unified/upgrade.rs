@@ -243,8 +243,20 @@ fn replacement_script(
     if ($backupHash -ne $originalHash) {{ throw 'Backup file SHA-256 mismatch' }}\n\
     try {{\n\
         $replacementStarted = $false\n\
-        Move-Item -LiteralPath $staged -Destination $target -Force\n\
-        $replacementStarted = $true\n\
+        $moveError = $null\n\
+        for ($attempt = 0; $attempt -lt 10; $attempt++) {{\n\
+            try {{\n\
+                Move-Item -LiteralPath $staged -Destination $target -Force\n\
+                $replacementStarted = $true\n\
+                $moveError = $null\n\
+                break\n\
+            }} catch {{\n\
+                $moveError = $_\n\
+                ('Move attempt failed: ' + $_.Exception.Message) | Add-Content -LiteralPath $log -Encoding UTF8\n\
+                Start-Sleep -Milliseconds 300\n\
+            }}\n\
+        }}\n\
+        if (-not $replacementStarted) {{ throw $moveError }}\n\
         $installedHash = (Get-FileHash -LiteralPath $target -Algorithm SHA256).Hash.ToLowerInvariant()\n\
         if ($installedHash -ne $expectedHash) {{ throw 'Installed file SHA-256 mismatch' }}\n\
         'success' | Set-Content -LiteralPath $statusFile -Encoding ASCII\n\
