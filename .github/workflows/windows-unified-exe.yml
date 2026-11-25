@@ -71,12 +71,14 @@ jobs:
       - name: Smoke test CLI, MCP, HTTP and GUI startup
         shell: pwsh
         run: |
+          [Console]::OutputEncoding = [System.Text.UTF8Encoding]::new($false)
+          $OutputEncoding = [Console]::OutputEncoding
           $exe = Join-Path $PWD "target\x86_64-pc-windows-msvc\release\eltdx.exe"
           if (-not (Test-Path $exe)) { throw "eltdx.exe was not produced" }
           & $exe --version
           if ($LASTEXITCODE -ne 0) { throw "--version failed" }
-          & $exe doctor
-          if ($LASTEXITCODE -ne 0) { throw "doctor failed" }
+          $doctor = ((& $exe doctor) -join [Environment]::NewLine) | ConvertFrom-Json
+          if ($LASTEXITCODE -ne 0 -or $doctor.components.gui -ne $true) { throw "GUI component check failed: $doctor" }
           & $exe cli version
           if ($LASTEXITCODE -ne 0) { throw "cli version failed" }
           & $exe upgrade status
@@ -100,13 +102,19 @@ jobs:
             $http.WaitForExit()
           }
 
-          $gui = Start-Process -FilePath $exe -PassThru
-          try {
-            Start-Sleep -Seconds 3
-            if ($gui.HasExited) { throw "GUI exited during startup with code $($gui.ExitCode)" }
-          } finally {
-            if (-not $gui.HasExited) { Stop-Process -Id $gui.Id -Force }
-            $gui.WaitForExit()
+          if ($env:CI -eq 'true') {
+            # Hosted runners do not provide an interactive desktop. The doctor
+            # assertion above verifies the GUI component; the standalone Windows
+            # acceptance suite covers real interactive startup.
+          } else {
+            $gui = Start-Process -FilePath $exe -PassThru
+            try {
+              Start-Sleep -Seconds 3
+              if ($gui.HasExited) { throw "GUI exited during startup with code $($gui.ExitCode)" }
+            } finally {
+              if (-not $gui.HasExited) { Stop-Process -Id $gui.Id -Force }
+              $gui.WaitForExit()
+            }
           }
 
           $unicodeDir = Join-Path $env:TEMP 'eltdx 中文路径'
@@ -121,12 +129,20 @@ jobs:
           Add-Content -Path $candidate -Value ([byte[]](1,2,3)) -AsByteStream
           $candidateHash = (Get-FileHash $candidate -Algorithm SHA256).Hash.ToLowerInvariant()
           $baselineHash = (Get-FileHash $unicodeExe -Algorithm SHA256).Hash.ToLowerInvariant()
-          & $unicodeExe upgrade install --file $candidate --sha256 ('0' * 64) | Out-Null
-          if ($LASTEXITCODE -eq 0) { throw "Upgrade accepted an incorrect SHA-256" }
+          $previousPreference = $ErrorActionPreference
+          try {
+            $ErrorActionPreference = 'Continue'
+            $badHashOutput = (& $unicodeExe upgrade install --file $candidate --sha256 ('0' * 64) 2>&1 | Out-String)
+            $badHashExitCode = $LASTEXITCODE
+          } finally {
+            $ErrorActionPreference = $previousPreference
+          }
+          if ($badHashExitCode -eq 0) { throw "Upgrade accepted an incorrect SHA-256: $badHashOutput" }
+          if ($badHashOutput -notmatch 'SHA-256') { throw "Wrong-hash upgrade failed for an unexpected reason: $badHashOutput" }
 
           $lock = [System.IO.File]::Open($unicodeExe, [System.IO.FileMode]::Open, [System.IO.FileAccess]::Read, [System.IO.FileShare]::Read)
           try {
-            $failureJson = (& $unicodeExe upgrade install --file $candidate --sha256 $candidateHash | Out-String) | ConvertFrom-Json
+            $failureJson = ((& $unicodeExe upgrade install --file $candidate --sha256 $candidateHash) -join [Environment]::NewLine) | ConvertFrom-Json
             if ($LASTEXITCODE -ne 0) { throw "Upgrade staging failed during rollback test" }
             $failureStatus = ''
             for ($i = 0; $i -lt 80; $i++) {
