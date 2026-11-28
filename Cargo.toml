@@ -5,6 +5,8 @@ members = [
   "crates/eltdx-tools",
   "crates/eltdx-protocol",
   "crates/eltdx-runtime",
+  "crates/eltdx-store",
+  "crates/eltdx-console",
   "crates/eltdx-python",
 ]
 
@@ -16,6 +18,7 @@ license-file = "LICENSE"
 repository = "https://github.com/electkismet/eltdx"
 
 [workspace.dependencies]
+argon2 = "=0.6.0"
 bytes = "=1.12.1"
 crc32fast = "=1.5.0"
 encoding_rs = "=0.8.35"
@@ -24,6 +27,7 @@ loom = "=0.7.2"
 proptest = "=1.11.0"
 pyo3 = "=0.29.2"
 rand = "=0.9.2"
+rusqlite = { version = "=0.43.0", default-features = false, features = ["bundled", "backup"] }
 serde = { version = "=1.0.229", features = ["derive"] }
 serde_json = "=1.0.145"
 socket2 = { version = "=0.6.5", features = ["all"] }

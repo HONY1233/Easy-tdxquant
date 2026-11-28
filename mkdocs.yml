@@ -59,6 +59,7 @@ extra_javascript:
 
 nav:
   - 接口目录: index.md
+  - 本地控制台: CONSOLE.md
   - 使用指南:
       - 产品与能力: PRODUCT.md
       - v3.4.0-beta.2 测试版: releases/v3.4.0-beta.2.md

@@ -3,9 +3,7 @@ use std::time::Duration;
 
 use clap::Parser;
 use eltdx::{OperationOptions, TdxClient};
-
-#[path = "http/gateway.rs"]
-mod gateway;
+use eltdx_tools::gateway;
 
 #[derive(Parser)]
 #[command(version, about = "Run the eltdx HTTP/WebSocket gateway")]

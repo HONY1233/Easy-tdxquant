@@ -8,7 +8,7 @@ use eltdx::TdxClient;
 use serde_json::{json, Value};
 use tokio::sync::watch;
 
-use eltdx_tools::rpc;
+use crate::rpc;
 #[path = "ws.rs"]
 mod ws;
 
@@ -24,43 +24,100 @@ struct App {
     subscriptions: ws::Subscriptions,
 }
 
-pub(super) fn router(client: TdxClient) -> (Router, watch::Sender<bool>) {
-    let (shutdown, receiver) = watch::channel(false);
-    let router = Router::new()
-        .route("/health", get(health))
-        .route("/methods", get(methods))
-        .route("/rpc", post(http_rpc))
-        .route("/ws", get(ws::upgrade))
-        .route("/openapi.json", get(openapi))
-        .route("/docs", get(docs))
-        .route("/redoc", get(redoc))
-        .route("/docs/oauth2-redirect", get(oauth_redirect))
-        .layer(DefaultBodyLimit::max(2 * 1024 * 1024))
-        .fallback(fallback)
-        .method_not_allowed_fallback(|| async {
-            (
-                StatusCode::METHOD_NOT_ALLOWED,
-                Json(json!({"detail": "Method Not Allowed"})),
-            )
+/// Shared gateway state for embedding the data plane in another server.
+#[derive(Clone)]
+pub struct GatewayHandle {
+    app: App,
+    shutdown: watch::Sender<bool>,
+}
+
+impl GatewayHandle {
+    pub fn new(client: TdxClient) -> Self {
+        let (shutdown, receiver) = watch::channel(false);
+        Self {
+            app: App {
+                client,
+                collections: rpc::CollectionCache::default(),
+                shutdown: receiver,
+                subscriptions: ws::Subscriptions::default(),
+            },
+            shutdown,
+        }
+    }
+
+    pub fn router(&self) -> Router {
+        Router::new()
+            .route("/health", get(health))
+            .route("/methods", get(methods))
+            .route("/rpc", post(http_rpc))
+            .route("/ws", get(ws::upgrade))
+            .route("/openapi.json", get(openapi))
+            .route("/docs", get(docs))
+            .route("/redoc", get(redoc))
+            .route("/docs/oauth2-redirect", get(oauth_redirect))
+            .layer(DefaultBodyLimit::max(2 * 1024 * 1024))
+            .fallback(fallback)
+            .method_not_allowed_fallback(|| async {
+                (
+                    StatusCode::METHOD_NOT_ALLOWED,
+                    Json(json!({"detail": "Method Not Allowed"})),
+                )
+            })
+            .with_state(self.app.clone())
+    }
+
+    pub fn client(&self) -> TdxClient {
+        self.app.client.clone()
+    }
+
+    pub fn shutdown(&self) {
+        self.shutdown.send_replace(true);
+    }
+
+    pub fn shutdown_sender(&self) -> watch::Sender<bool> {
+        self.shutdown.clone()
+    }
+
+    /// Call a gateway method outside HTTP, reusing the same client and cache.
+    pub async fn call(&self, method: &str, params: Value) -> rpc::Result<Value> {
+        let client = self.app.client.clone();
+        let collections = self.app.collections.clone();
+        let method = method.to_owned();
+        tokio::task::spawn_blocking(move || {
+            rpc::call_with_cache(&client, &collections, &method, params)
         })
-        .with_state(App {
-            client,
-            collections: rpc::CollectionCache::default(),
-            shutdown: receiver,
-            subscriptions: ws::Subscriptions::default(),
-        });
-    (router, shutdown)
+        .await
+        .unwrap_or_else(|error| Err(rpc::RpcError::internal(format!("{error}"))))
+    }
+
+    /// Dispatch a JSON-RPC body as the HTTP endpoint would, without a peer.
+    pub async fn dispatch(&self, body: Value) -> (StatusCode, Value) {
+        dispatch(self.app.clone(), body, None).await
+    }
+}
+
+pub fn router(client: TdxClient) -> (Router, watch::Sender<bool>) {
+    let handle = GatewayHandle::new(client);
+    (handle.router(), handle.shutdown_sender())
+}
+
+pub fn health_payload() -> Value {
+    json!({
+        "ok": true, "service": "eltdx", "version": VERSION,
+        "transports": ["http", "websocket"], "native_push_method": WS_ONLY[0]
+    })
+}
+
+pub fn methods_payload() -> Value {
+    json!({"methods": rpc::methods(), "websocket_only": WS_ONLY})
 }
 
 async fn health() -> Json<Value> {
-    Json(json!({
-        "ok": true, "service": "eltdx", "version": VERSION,
-        "transports": ["http", "websocket"], "native_push_method": WS_ONLY[0]
-    }))
+    Json(health_payload())
 }
 
 async fn methods() -> Json<Value> {
-    Json(json!({"methods": rpc::methods(), "websocket_only": WS_ONLY}))
+    Json(methods_payload())
 }
 
 async fn http_rpc(State(app): State<App>, headers: HeaderMap, body: Bytes) -> Response {

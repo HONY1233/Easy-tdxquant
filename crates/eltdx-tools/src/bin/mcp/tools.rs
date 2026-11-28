@@ -1,6 +1,6 @@
 use serde_json::{json, Value};
 
-pub(super) struct Tool {
+pub struct Tool {
     pub name: &'static str,
     pub hq: bool,
     description: &'static str,
@@ -73,11 +73,16 @@ impl Tool {
     }
 }
 
-pub(super) fn lookup(name: &str) -> Option<&'static Tool> {
+pub fn lookup(name: &str) -> Option<&'static Tool> {
     TOOLS.iter().find(|tool| tool.name == name)
 }
 
-pub(super) fn schemas() -> Vec<Value> {
+#[allow(dead_code)] // Used by the library registry; the stdio binary only lists schemas.
+pub fn names() -> Vec<&'static str> {
+    TOOLS.iter().map(|tool| tool.name).collect()
+}
+
+pub fn schemas() -> Vec<Value> {
     TOOLS.iter().map(|tool| {
         let mut properties = serde_json::Map::new();
         let mut required = Vec::new();
@@ -105,7 +110,7 @@ pub(super) fn schemas() -> Vec<Value> {
     }).collect()
 }
 
-pub(super) fn validate(tool: &Tool, args: &Value) -> Result<(), Box<dyn std::error::Error>> {
+pub fn validate(tool: &Tool, args: &Value) -> Result<(), Box<dyn std::error::Error>> {
     let object = args.as_object().ok_or("arguments must be an object")?;
     for name in object.keys() {
         if !tool.fields().any(|(field, _, _)| field == name) {

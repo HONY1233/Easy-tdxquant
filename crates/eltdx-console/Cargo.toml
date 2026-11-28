@@ -1,0 +1,28 @@
+[package]
+name = "eltdx-console"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license-file = "LICENSE"
+repository.workspace = true
+description = "Collection orchestration and local admin console for eltdx"
+publish = false
+default-run = "eltdx-console"
+
+[dependencies]
+eltdx = { path = "../eltdx" }
+eltdx-store = { path = "../eltdx-store" }
+eltdx-tools = { path = "../eltdx-tools" }
+axum = { version = "=0.8.9", features = ["json"] }
+rand.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+sha2 = "=0.10.9"
+thiserror.workspace = true
+tokio = { workspace = true, features = ["net", "signal"] }
+
+[dev-dependencies]
+tokio.workspace = true
+
+[lints]
+workspace = true
