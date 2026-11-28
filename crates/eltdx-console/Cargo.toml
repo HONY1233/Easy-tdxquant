@@ -1,0 +1,21 @@
+[package]
+name = "eltdx-console"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license-file = "LICENSE"
+repository.workspace = true
+description = "Collection orchestration and normalization for the eltdx local console"
+publish = false
+
+[dependencies]
+eltdx-store = { path = "../eltdx-store" }
+eltdx-tools = { path = "../eltdx-tools" }
+serde_json.workspace = true
+thiserror.workspace = true
+
+[dev-dependencies]
+tokio.workspace = true
+
+[lints]
+workspace = true

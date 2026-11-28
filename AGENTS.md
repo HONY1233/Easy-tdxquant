@@ -93,7 +93,7 @@ Never
 
 ## 7. 已知的坑
 
-- `crates/eltdx-tools/src/bin/cli/extension.rs` 与 `crates/eltdx-tools/src/bin/http/helpers.rs` 的 `#[cfg(test)] mod tests` 必须位于文件末尾，否则严格 Clippy 会触发 `items_after_test_module`。
+- `crates/eltdx-tools/src/bin/cli/extension.rs` 与 `crates/eltdx-tools/src/gateway/helpers.rs` 的 `#[cfg(test)] mod tests` 必须位于文件末尾，否则严格 Clippy 会触发 `items_after_test_module`。
 - `tests/contracts/manifests/python_test_groups.json` 必须恰好登记每个 `tests/**/test_*.py` 一次；新增测试文件未登记会让 `round4-local` 的分组契约失败。
 - maturin 会在 sdist 中裁剪非 Python workspace 成员但保留完整 `Cargo.lock`；不要在 `[tool.maturin]` 全局设置 `locked = true`，发布 wheel 的锁定由工作流显式传入 `--locked`。
 - Windows 统一 EXE 的升级冒烟只能在 Windows runner 验证；WSL 静态检查不能替代该工作流。
