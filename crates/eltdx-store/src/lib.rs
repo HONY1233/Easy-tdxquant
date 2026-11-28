@@ -10,8 +10,9 @@ mod store;
 
 pub use error::StoreError;
 pub use model::{
-    AdminUser, AuditEntry, ChangeEntry, Checkpoint, CollectionMode, CollectionTask, DatasetState,
-    NewTask, NewsArticle, NewsArticleInput, NewsBody, NewsChannel, RunStatus,
+    AdminSession, AdminUser, AuditEntry, ChangeEntry, Checkpoint, CollectionMode, CollectionTask,
+    DatasetState, KlineRow, McpCallRow, McpToolState, NewTask, NewsArticle, NewsArticleInput,
+    NewsBody, NewsChannel, PayloadRow, QuoteSnapshotRow, RunStatus, RunSummary,
 };
 pub use store::{Result, Store};
 
@@ -75,6 +76,40 @@ mod tests {
         assert!(store
             .verify_admin("nobody", "correct horse battery")?
             .is_none());
+        Ok(())
+    }
+
+    #[test]
+    fn sessions_resolve_touch_and_revoke() -> Result<()> {
+        let store = store();
+        let user_id = store.create_admin("admin", "correct horse battery")?;
+        let expires_at = store.create_session(user_id, "hash-a", 60)?;
+        assert!(expires_at.ends_with('Z'));
+        assert!(store.create_session(user_id, "  ", 60).is_err());
+
+        let session = store.resolve_session("hash-a")?;
+        let session = match session {
+            Some(session) => session,
+            None => panic!("session must resolve"),
+        };
+        assert_eq!(session.user.username, "admin");
+        assert_eq!(session.user.role, "admin");
+        assert_eq!(session.expires_at, expires_at);
+        assert!(store.resolve_session("hash-missing")?.is_none());
+        assert_eq!(store.count_active_sessions()?, 1);
+
+        assert!(store.touch_session("hash-a", 120)?);
+        assert!(!store.touch_session("hash-missing", 120)?);
+        let touched = match store.resolve_session("hash-a")? {
+            Some(session) => session,
+            None => panic!("touched session must resolve"),
+        };
+        assert!(touched.expires_at > expires_at);
+
+        assert_eq!(store.purge_expired_sessions()?, 0);
+        assert!(store.delete_session("hash-a")?);
+        assert!(!store.delete_session("hash-a")?);
+        assert_eq!(store.count_active_sessions()?, 0);
         Ok(())
     }
 

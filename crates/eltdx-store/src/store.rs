@@ -12,8 +12,9 @@ use serde_json::Value;
 
 use crate::error::StoreError;
 use crate::model::{
-    AdminUser, AuditEntry, ChangeEntry, Checkpoint, CollectionMode, CollectionTask, DatasetState,
-    NewTask, NewsArticle, NewsArticleInput, NewsBody, NewsChannel, RunStatus,
+    AdminSession, AdminUser, AuditEntry, ChangeEntry, Checkpoint, CollectionMode, CollectionTask,
+    DatasetState, KlineRow, McpCallRow, McpToolState, NewTask, NewsArticle, NewsArticleInput,
+    NewsBody, NewsChannel, PayloadRow, QuoteSnapshotRow, RunStatus, RunSummary,
 };
 use crate::schema::{MIGRATION_1, MIGRATION_2, SCHEMA_VERSION};
 
@@ -219,6 +220,110 @@ impl Store {
         }
     }
 
+    /// Creates a console session for `user_id` and returns its ISO-8601 expiry.
+    ///
+    /// `token_hash` is the hex SHA-256 of the bearer token; the store never sees
+    /// the raw token. `ttl_minutes` is clamped to 1..=10080 (7 days).
+    pub fn create_session(
+        &self,
+        user_id: i64,
+        token_hash: &str,
+        ttl_minutes: i64,
+    ) -> Result<String> {
+        if token_hash.trim().is_empty() {
+            return Err(StoreError::Invalid(
+                "session token hash must not be empty".to_owned(),
+            ));
+        }
+        let modifier = ttl_modifier(ttl_minutes);
+        let conn = self.conn()?;
+        let expires_at: String = conn.query_row(
+            "SELECT strftime('%Y-%m-%dT%H:%M:%fZ', 'now', ?1)",
+            params![modifier],
+            |row| row.get(0),
+        )?;
+        conn.execute(
+            &format!(
+                "INSERT INTO admin_sessions(token_hash, user_id, expires_at, last_seen, created_at) \
+                 VALUES (?1, ?2, ?3, {NOW}, {NOW})"
+            ),
+            params![token_hash, user_id, expires_at],
+        )?;
+        Ok(expires_at)
+    }
+
+    /// Looks up a live session by token hash; expired rows are treated as absent.
+    pub fn resolve_session(&self, token_hash: &str) -> Result<Option<AdminSession>> {
+        let conn = self.conn()?;
+        let session = conn
+            .query_row(
+                &format!(
+                    "SELECT u.id, u.username, u.role, u.created_at, s.expires_at, s.created_at, \
+                     s.last_seen FROM admin_sessions s \
+                     JOIN admin_users u ON u.id = s.user_id \
+                     WHERE s.token_hash = ?1 AND s.expires_at > {NOW}"
+                ),
+                params![token_hash],
+                |row| {
+                    Ok(AdminSession {
+                        user: AdminUser {
+                            id: row.get(0)?,
+                            username: row.get(1)?,
+                            role: row.get(2)?,
+                            created_at: row.get(3)?,
+                        },
+                        expires_at: row.get(4)?,
+                        created_at: row.get(5)?,
+                        last_seen: row.get(6)?,
+                    })
+                },
+            )
+            .optional()?;
+        Ok(session)
+    }
+
+    /// Extends a live session's idle window. Returns `false` when it is gone.
+    pub fn touch_session(&self, token_hash: &str, ttl_minutes: i64) -> Result<bool> {
+        let modifier = ttl_modifier(ttl_minutes);
+        let conn = self.conn()?;
+        let changed = conn.execute(
+            &format!(
+                "UPDATE admin_sessions SET last_seen = {NOW}, \
+                 expires_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now', ?2) \
+                 WHERE token_hash = ?1 AND expires_at > {NOW}"
+            ),
+            params![token_hash, modifier],
+        )?;
+        Ok(changed > 0)
+    }
+
+    pub fn delete_session(&self, token_hash: &str) -> Result<bool> {
+        let conn = self.conn()?;
+        let changed = conn.execute(
+            "DELETE FROM admin_sessions WHERE token_hash = ?1",
+            params![token_hash],
+        )?;
+        Ok(changed > 0)
+    }
+
+    pub fn purge_expired_sessions(&self) -> Result<usize> {
+        let conn = self.conn()?;
+        let changed = conn.execute(
+            &format!("DELETE FROM admin_sessions WHERE expires_at <= {NOW}"),
+            [],
+        )?;
+        Ok(changed)
+    }
+
+    pub fn count_active_sessions(&self) -> Result<i64> {
+        let conn = self.conn()?;
+        Ok(conn.query_row(
+            &format!("SELECT COUNT(*) FROM admin_sessions WHERE expires_at > {NOW}"),
+            [],
+            |row| row.get(0),
+        )?)
+    }
+
     pub fn create_task(&self, task: &NewTask) -> Result<i64> {
         validate_new_task(task)?;
         let params_json = serde_json::to_string(&task.params)?;
@@ -344,6 +449,50 @@ impl Store {
             return Err(StoreError::Invalid(format!("run {run_id} not found")));
         }
         Ok(())
+    }
+
+    /// Start time of the newest run for a task, used by the scheduler.
+    pub fn latest_run_started_at(&self, task_id: i64) -> Result<Option<String>> {
+        let conn = self.conn()?;
+        Ok(conn
+            .query_row(
+                "SELECT started_at FROM collection_runs WHERE task_id = ?1 \
+                 ORDER BY id DESC LIMIT 1",
+                params![task_id],
+                |row| row.get(0),
+            )
+            .optional()?)
+    }
+
+    /// Most recent runs across all tasks, newest first.
+    pub fn recent_runs(&self, limit: i64) -> Result<Vec<RunSummary>> {
+        let conn = self.conn()?;
+        let mut statement = conn.prepare(
+            "SELECT id, task_id, \"trigger\", mode, status, rows, bytes, pages, \
+             watermark_before, watermark_after, started_at, finished_at, duration_ms, error \
+             FROM collection_runs ORDER BY id DESC LIMIT ?1",
+        )?;
+        let mut rows = statement.query(params![limit.max(1)])?;
+        let mut runs = Vec::new();
+        while let Some(row) = rows.next()? {
+            runs.push(RunSummary {
+                id: row.get(0)?,
+                task_id: row.get(1)?,
+                trigger: row.get(2)?,
+                mode: row.get(3)?,
+                status: row.get(4)?,
+                rows: row.get(5)?,
+                bytes: row.get(6)?,
+                pages: row.get(7)?,
+                watermark_before: row.get(8)?,
+                watermark_after: row.get(9)?,
+                started_at: row.get(10)?,
+                finished_at: row.get(11)?,
+                duration_ms: row.get(12)?,
+                error: row.get(13)?,
+            });
+        }
+        Ok(runs)
     }
 
     pub fn get_dataset_state(
@@ -885,13 +1034,28 @@ impl Store {
         scope_key: Option<&str>,
         limit: i64,
     ) -> Result<Vec<NewsArticle>> {
+        self.list_news_page(dataset, scope_key, limit, 0)
+    }
+
+    pub fn list_news_page(
+        &self,
+        dataset: Option<&str>,
+        scope_key: Option<&str>,
+        limit: i64,
+        offset: i64,
+    ) -> Result<Vec<NewsArticle>> {
         let conn = self.conn()?;
         let mut statement = conn.prepare(&format!(
             "SELECT {NEWS_COLUMNS} FROM news_articles \
              WHERE (?1 IS NULL OR dataset = ?1) AND (?2 IS NULL OR scope_key = ?2) \
-             ORDER BY COALESCE(published_at, first_seen_at) DESC, id DESC LIMIT ?3"
+             ORDER BY COALESCE(published_at, first_seen_at) DESC, id DESC LIMIT ?3 OFFSET ?4"
         ))?;
-        let mut rows = statement.query(params![dataset, scope_key, limit.clamp(1, 1_000)])?;
+        let mut rows = statement.query(params![
+            dataset,
+            scope_key,
+            limit.clamp(1, 1_000),
+            offset.max(0)
+        ])?;
         let mut articles = Vec::new();
         while let Some(row) = rows.next()? {
             articles.push(news_article_from_row(row)?);
@@ -982,6 +1146,11 @@ impl Store {
         )?)
     }
 
+    pub fn prune_quote_snapshots_before(&self, before: &str) -> Result<usize> {
+        let conn = self.conn()?;
+        Ok(conn.execute("DELETE FROM quote_snapshots WHERE ts < ?1", params![before])?)
+    }
+
     pub fn prune_change_log_keep(&self, keep: i64) -> Result<usize> {
         let conn = self.conn()?;
         Ok(conn.execute(
@@ -994,6 +1163,197 @@ impl Store {
     pub fn prune_audit_before(&self, before: &str) -> Result<usize> {
         let conn = self.conn()?;
         Ok(conn.execute("DELETE FROM audit_log WHERE ts < ?1", params![before])?)
+    }
+
+    // ---------------------------------------------------------- data browsing
+
+    pub fn list_payloads(
+        &self,
+        dataset: Option<&str>,
+        code: Option<&str>,
+        limit: i64,
+        offset: i64,
+    ) -> Result<Vec<PayloadRow>> {
+        let conn = self.conn()?;
+        let mut statement = conn.prepare(
+            "SELECT id, dataset, code, trade_date, fetched_at, length(payload_json), run_id \
+             FROM collected_payloads \
+             WHERE (?1 IS NULL OR dataset = ?1) AND (?2 IS NULL OR code = ?2) \
+             ORDER BY id DESC LIMIT ?3 OFFSET ?4",
+        )?;
+        let mut rows =
+            statement.query(params![dataset, code, limit.clamp(1, 1000), offset.max(0)])?;
+        let mut out = Vec::new();
+        while let Some(row) = rows.next()? {
+            out.push(PayloadRow {
+                id: row.get(0)?,
+                dataset: row.get(1)?,
+                code: row.get(2)?,
+                trade_date: row.get(3)?,
+                fetched_at: row.get(4)?,
+                bytes: row.get(5)?,
+                run_id: row.get(6)?,
+            });
+        }
+        Ok(out)
+    }
+
+    pub fn get_payload(&self, id: i64) -> Result<Option<Value>> {
+        let conn = self.conn()?;
+        let payload: Option<String> = conn
+            .query_row(
+                "SELECT payload_json FROM collected_payloads WHERE id = ?1",
+                params![id],
+                |row| row.get(0),
+            )
+            .optional()?;
+        match payload {
+            Some(text) => Ok(Some(serde_json::from_str(&text)?)),
+            None => Ok(None),
+        }
+    }
+
+    pub fn list_klines(
+        &self,
+        code: Option<&str>,
+        period: Option<&str>,
+        limit: i64,
+        offset: i64,
+    ) -> Result<Vec<KlineRow>> {
+        let conn = self.conn()?;
+        let mut statement = conn.prepare(
+            "SELECT code, source, period, adjust, trade_date, open, high, low, close, volume, amount \
+             FROM kline_bars \
+             WHERE (?1 IS NULL OR code = ?1) AND (?2 IS NULL OR period = ?2) \
+             ORDER BY trade_date DESC, code LIMIT ?3 OFFSET ?4",
+        )?;
+        let mut rows =
+            statement.query(params![code, period, limit.clamp(1, 5000), offset.max(0)])?;
+        let mut out = Vec::new();
+        while let Some(row) = rows.next()? {
+            out.push(KlineRow {
+                code: row.get(0)?,
+                source: row.get(1)?,
+                period: row.get(2)?,
+                adjust: row.get(3)?,
+                trade_date: row.get(4)?,
+                open: row.get(5)?,
+                high: row.get(6)?,
+                low: row.get(7)?,
+                close: row.get(8)?,
+                volume: row.get(9)?,
+                amount: row.get(10)?,
+            });
+        }
+        Ok(out)
+    }
+
+    pub fn list_quote_snapshots(
+        &self,
+        code: Option<&str>,
+        limit: i64,
+        offset: i64,
+    ) -> Result<Vec<QuoteSnapshotRow>> {
+        let conn = self.conn()?;
+        let mut statement = conn.prepare(
+            "SELECT code, ts, price, pre_close, open, high, low, volume, amount \
+             FROM quote_snapshots WHERE (?1 IS NULL OR code = ?1) \
+             ORDER BY ts DESC, code LIMIT ?2 OFFSET ?3",
+        )?;
+        let mut rows = statement.query(params![code, limit.clamp(1, 5000), offset.max(0)])?;
+        let mut out = Vec::new();
+        while let Some(row) = rows.next()? {
+            out.push(QuoteSnapshotRow {
+                code: row.get(0)?,
+                ts: row.get(1)?,
+                price: row.get(2)?,
+                pre_close: row.get(3)?,
+                open: row.get(4)?,
+                high: row.get(5)?,
+                low: row.get(6)?,
+                volume: row.get(7)?,
+                amount: row.get(8)?,
+            });
+        }
+        Ok(out)
+    }
+
+    // ------------------------------------------------------------- mcp catalog
+
+    pub fn list_mcp_tool_states(&self) -> Result<Vec<McpToolState>> {
+        let conn = self.conn()?;
+        let mut statement = conn
+            .prepare("SELECT tool_name, enabled, updated_at FROM mcp_tools ORDER BY tool_name")?;
+        let mut rows = statement.query([])?;
+        let mut out = Vec::new();
+        while let Some(row) = rows.next()? {
+            out.push(McpToolState {
+                tool_name: row.get(0)?,
+                enabled: row.get::<_, i64>(1)? == 1,
+                updated_at: row.get(2)?,
+            });
+        }
+        Ok(out)
+    }
+
+    pub fn set_mcp_tool_enabled(&self, tool_name: &str, enabled: bool) -> Result<()> {
+        if tool_name.trim().is_empty() {
+            return Err(StoreError::Invalid(
+                "mcp tool name must not be empty".to_owned(),
+            ));
+        }
+        let conn = self.conn()?;
+        conn.execute(
+            &format!(
+                "INSERT INTO mcp_tools(tool_name, enabled, updated_at) VALUES (?1, ?2, {NOW}) \
+                 ON CONFLICT(tool_name) DO UPDATE SET enabled = excluded.enabled, \
+                 updated_at = excluded.updated_at"
+            ),
+            params![tool_name.trim(), i64::from(enabled)],
+        )?;
+        Ok(())
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub fn log_mcp_call(
+        &self,
+        tool: &str,
+        params_digest: &str,
+        duration_ms: i64,
+        ok: bool,
+        error_code: Option<&str>,
+    ) -> Result<i64> {
+        let conn = self.conn()?;
+        conn.execute(
+            &format!(
+                "INSERT INTO mcp_call_log(tool, params_digest, started_at, duration_ms, ok, error_code) \
+                 VALUES (?1, ?2, {NOW}, ?3, ?4, ?5)"
+            ),
+            params![tool, params_digest, duration_ms.max(0), i64::from(ok), error_code],
+        )?;
+        Ok(conn.last_insert_rowid())
+    }
+
+    pub fn recent_mcp_calls(&self, limit: i64) -> Result<Vec<McpCallRow>> {
+        let conn = self.conn()?;
+        let mut statement = conn.prepare(
+            "SELECT id, tool, params_digest, started_at, duration_ms, ok, error_code \
+             FROM mcp_call_log ORDER BY id DESC LIMIT ?1",
+        )?;
+        let mut rows = statement.query(params![limit.clamp(1, 1000)])?;
+        let mut out = Vec::new();
+        while let Some(row) = rows.next()? {
+            out.push(McpCallRow {
+                id: row.get(0)?,
+                tool: row.get(1)?,
+                params_digest: row.get(2)?,
+                started_at: row.get(3)?,
+                duration_ms: row.get(4)?,
+                ok: row.get::<_, i64>(5)? == 1,
+                error_code: row.get(6)?,
+            });
+        }
+        Ok(out)
     }
 
     pub fn incremental_vacuum(&self) -> Result<()> {
@@ -1012,6 +1372,11 @@ fn configure(conn: &Connection) -> Result<()> {
     )?;
     let _: String = conn.query_row("PRAGMA journal_mode = WAL", [], |row| row.get(0))?;
     Ok(())
+}
+
+/// SQLite datetime modifier for a session TTL, clamped to 1..=10080 minutes.
+fn ttl_modifier(ttl_minutes: i64) -> String {
+    format!("+{} minutes", ttl_minutes.clamp(1, 7 * 24 * 60))
 }
 
 fn hash_password(password: &str) -> Result<String> {

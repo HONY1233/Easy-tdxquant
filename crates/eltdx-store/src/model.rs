@@ -130,7 +130,7 @@ impl NewTask {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub struct CollectionTask {
     pub id: i64,
     pub name: String,
@@ -178,12 +178,96 @@ pub struct Checkpoint {
     pub updated_at: String,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
+pub struct RunSummary {
+    pub id: i64,
+    pub task_id: i64,
+    pub trigger: String,
+    pub mode: String,
+    pub status: String,
+    pub rows: i64,
+    pub bytes: i64,
+    pub pages: i64,
+    pub watermark_before: Option<String>,
+    pub watermark_after: Option<String>,
+    pub started_at: String,
+    pub finished_at: Option<String>,
+    pub duration_ms: Option<i64>,
+    pub error: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct PayloadRow {
+    pub id: i64,
+    pub dataset: String,
+    pub code: String,
+    pub trade_date: String,
+    pub fetched_at: String,
+    pub bytes: i64,
+    pub run_id: Option<i64>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct KlineRow {
+    pub code: String,
+    pub source: String,
+    pub period: String,
+    pub adjust: String,
+    pub trade_date: String,
+    pub open: Option<f64>,
+    pub high: Option<f64>,
+    pub low: Option<f64>,
+    pub close: Option<f64>,
+    pub volume: Option<f64>,
+    pub amount: Option<f64>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct QuoteSnapshotRow {
+    pub code: String,
+    pub ts: String,
+    pub price: Option<f64>,
+    pub pre_close: Option<f64>,
+    pub open: Option<f64>,
+    pub high: Option<f64>,
+    pub low: Option<f64>,
+    pub volume: Option<f64>,
+    pub amount: Option<f64>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct McpToolState {
+    pub tool_name: String,
+    pub enabled: bool,
+    pub updated_at: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct McpCallRow {
+    pub id: i64,
+    pub tool: String,
+    pub params_digest: String,
+    pub started_at: String,
+    pub duration_ms: i64,
+    pub ok: bool,
+    pub error_code: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
 pub struct AdminUser {
     pub id: i64,
     pub username: String,
     pub role: String,
     pub created_at: String,
+}
+
+/// A resolved console session: the owning administrator plus its timestamps.
+#[derive(Debug, Clone)]
+pub struct AdminSession {
+    pub user: AdminUser,
+    pub expires_at: String,
+    pub created_at: String,
+    pub last_seen: String,
 }
 
 #[derive(Debug, Clone)]
@@ -275,7 +359,7 @@ impl NewsArticleInput {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub struct NewsArticle {
     pub id: i64,
     pub dataset: String,

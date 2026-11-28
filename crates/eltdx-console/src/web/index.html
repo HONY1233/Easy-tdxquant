@@ -1,0 +1,340 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>eltdx 控制台</title>
+<style>
+  :root { color-scheme: light dark; --bg:#f7f7f8; --fg:#18181b; --muted:#71717a; --card:#fff; --line:#e4e4e7; --accent:#2563eb; --danger:#dc2626; --ok:#16a34a; }
+  @media (prefers-color-scheme: dark) { :root { --bg:#09090b; --fg:#fafafa; --muted:#a1a1aa; --card:#18181b; --line:#27272a; --accent:#60a5fa; --danger:#f87171; --ok:#4ade80; } }
+  * { box-sizing: border-box; }
+  body { margin:0; font:14px/1.6 -apple-system,"Segoe UI",system-ui,"Noto Sans SC",sans-serif; background:var(--bg); color:var(--fg); }
+  header { display:flex; align-items:center; gap:16px; padding:14px 24px; border-bottom:1px solid var(--line); background:var(--card); position:sticky; top:0; z-index:10; }
+  header h1 { font-size:15px; margin:0; font-weight:600; }
+  header .meta { color:var(--muted); font-size:12px; }
+  header .spacer { flex:1; }
+  main { max-width:1180px; margin:0 auto; padding:20px 24px 60px; }
+  nav { display:flex; gap:4px; padding:0 24px; border-bottom:1px solid var(--line); background:var(--card); }
+  nav button { border:0; background:transparent; color:var(--muted); padding:10px 14px; font:inherit; cursor:pointer; border-bottom:2px solid transparent; }
+  nav button.active { color:var(--fg); border-bottom-color:var(--accent); font-weight:600; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:16px; margin-bottom:16px; }
+  .grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:10px; }
+  .stat { border:1px solid var(--line); border-radius:10px; padding:12px; }
+  .stat b { display:block; font-size:20px; font-weight:600; }
+  .stat span { color:var(--muted); font-size:12px; }
+  label { display:block; font-size:12px; color:var(--muted); margin:10px 0 4px; }
+  input, select, textarea { width:100%; padding:7px 9px; border:1px solid var(--line); border-radius:8px; background:transparent; color:inherit; font:inherit; }
+  textarea { font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:12px; }
+  button.act { padding:6px 12px; border-radius:8px; border:1px solid var(--line); background:var(--accent); color:#fff; font:inherit; cursor:pointer; }
+  button.ghost { background:transparent; color:var(--fg); }
+  button.small { padding:2px 8px; font-size:12px; }
+  button:disabled { opacity:.5; cursor:not-allowed; }
+  .row { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+  .row > .grow { flex:1; min-width:140px; }
+  table { width:100%; border-collapse:collapse; font-size:13px; }
+  th, td { text-align:left; padding:7px 8px; border-bottom:1px solid var(--line); vertical-align:top; }
+  th { color:var(--muted); font-weight:500; font-size:12px; }
+  tbody tr:hover { background:rgba(127,127,127,.06); }
+  code, .mono { font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:12px; }
+  .muted { color:var(--muted); }
+  .ok { color:var(--ok); } .err { color:var(--danger); }
+  .hidden { display:none !important; }
+  .pill { display:inline-block; padding:1px 8px; border-radius:999px; border:1px solid var(--line); font-size:12px; }
+  pre { background:var(--bg); border:1px solid var(--line); border-radius:8px; padding:12px; overflow:auto; max-height:420px; }
+  .split { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+  @media (max-width:800px) { .split { grid-template-columns:1fr; } }
+</style>
+</head>
+<body>
+<header>
+  <h1>eltdx 控制台</h1>
+  <span class="meta" id="version"></span>
+  <span class="spacer"></span>
+  <span class="meta" id="who"></span>
+  <button class="act ghost small" id="logout" type="button">退出</button>
+</header>
+<nav id="tabs" class="hidden">
+  <button data-view="overview" class="active">概览</button>
+  <button data-view="tasks">任务</button>
+  <button data-view="data">数据</button>
+  <button data-view="mcp">MCP</button>
+  <button data-view="audit">审计</button>
+</nav>
+<main>
+  <section id="auth" class="card hidden">
+    <div id="auth-title" class="muted" style="margin-bottom:8px"></div>
+    <form id="auth-form">
+      <label>用户名</label><input id="username" autocomplete="username" required>
+      <label>密码</label><input id="password" type="password" autocomplete="current-password" required>
+      <div class="row" style="margin-top:14px"><button class="act" id="auth-submit" type="submit">登录</button></div>
+    </form>
+    <div id="auth-msg" class="err" style="margin-top:10px"></div>
+  </section>
+
+  <section id="view-overview" class="view hidden">
+    <div class="card"><div class="grid" id="stats"></div></div>
+    <div class="card"><h3 style="margin:0 0 10px;font-size:14px">最近运行</h3><div id="runs"></div></div>
+  </section>
+
+  <section id="view-tasks" class="view hidden">
+    <div class="card">
+      <h3 style="margin:0 0 10px;font-size:14px">新建采集任务</h3>
+      <div class="split">
+        <div>
+          <label>名称</label><input id="t-name" placeholder="每日 K 线">
+          <label>dataset</label><input id="t-dataset" placeholder="quote.snapshot">
+          <label>method</label><input id="t-method" placeholder="quotes.get_snapshots">
+          <label>params（JSON）</label><textarea id="t-params" rows="4">{"codes":["sz000001"]}</textarea>
+        </div>
+        <div>
+          <label>mode</label>
+          <select id="t-mode"><option>incremental</option><option>full</option><option>backfill</option><option>refresh</option></select>
+          <label>调度</label>
+          <div class="row"><select id="t-kind"><option>manual</option><option>interval</option><option>daily</option></select>
+          <input id="t-expr" placeholder="5m 或 09:30" style="max-width:140px"></div>
+          <div class="row">
+            <div class="grow"><label>shard_size</label><input id="t-shard" value="100"></div>
+            <div class="grow"><label>concurrency</label><input id="t-conc" value="1"></div>
+          </div>
+          <div class="row">
+            <div class="grow"><label>timeout_ms</label><input id="t-timeout" value="8000"></div>
+            <div class="grow"><label>retry</label><input id="t-retry" value="2"></div>
+          </div>
+        </div>
+      </div>
+      <div class="row" style="margin-top:14px"><button class="act" id="create-task" type="button">创建</button><span id="task-msg" class="muted"></span></div>
+    </div>
+    <div class="card"><h3 style="margin:0 0 10px;font-size:14px">任务列表</h3><div id="tasks"></div></div>
+    <div class="card"><h3 style="margin:0 0 10px;font-size:14px">运行记录</h3><div id="task-runs"></div></div>
+  </section>
+
+  <section id="view-data" class="view hidden">
+    <div class="card">
+      <div class="row">
+        <select id="d-kind" style="max-width:200px">
+          <option value="payloads">原始载荷</option>
+          <option value="klines">K 线</option>
+          <option value="quotes">快照</option>
+          <option value="news">新闻</option>
+        </select>
+        <input id="d-code" placeholder="代码，如 sz000001" style="max-width:180px">
+        <input id="d-dataset" placeholder="dataset（仅载荷）" style="max-width:220px">
+        <button class="act" id="d-load" type="button">查询</button>
+        <a class="act ghost small" id="d-export" href="#" style="text-decoration:none">导出 CSV</a>
+      </div>
+      <div class="muted" style="margin-top:8px" id="d-msg"></div>
+    </div>
+    <div class="card"><div id="d-table"></div></div>
+    <div class="card hidden" id="d-detail-card"><h3 style="margin:0 0 8px;font-size:14px">载荷详情</h3><pre id="d-detail"></pre></div>
+  </section>
+
+  <section id="view-mcp" class="view hidden">
+    <div class="card"><div class="grid" id="mcp-stats"></div></div>
+    <div class="card"><h3 style="margin:0 0 10px;font-size:14px">MCP 工具</h3><div id="mcp-tools"></div></div>
+    <div class="card"><h3 style="margin:0 0 10px;font-size:14px">工具调用记录</h3><div id="mcp-calls"></div></div>
+  </section>
+
+  <section id="view-audit" class="view hidden">
+    <div class="card"><h3 style="margin:0 0 10px;font-size:14px">审计日志</h3><div id="audit"></div></div>
+  </section>
+</main>
+<script>
+const $ = (id) => document.getElementById(id);
+const esc = (value) => String(value ?? '').replace(/[&<>"']/g, (ch) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
+
+const api = async (path, options = {}) => {
+  const response = await fetch(path, { credentials: 'same-origin', ...options });
+  const text = await response.text();
+  const body = text ? JSON.parse(text) : null;
+  if (!response.ok) throw new Error((body && body.error && body.error.message) || response.statusText);
+  return body;
+};
+const show = (id, on) => $(id).classList.toggle('hidden', !on);
+const table = (head, rows) => {
+  if (!rows.length) return '<div class="muted">暂无数据</div>';
+  return '<table><thead><tr>' + head.map((h) => '<th>' + esc(h) + '</th>').join('') + '</tr></thead><tbody>' +
+    rows.map((cells) => '<tr>' + cells.map((c) => '<td>' + c + '</td>').join('') + '</tr>').join('') +
+    '</tbody></table>';
+};
+
+let me = null;
+
+const boot = async () => {
+  let health;
+  try { health = await api('/api/health'); }
+  catch (error) { $('auth-msg').textContent = '服务不可用：' + error.message; show('auth', true); return; }
+  $('version').textContent = health.service + ' ' + health.version + ' · schema v' + health.schema_version;
+  if (await session()) return;
+  const setup = !health.has_admin;
+  $('auth-title').textContent = setup ? '首次启动：创建管理员（密码至少 12 位）' : '登录';
+  $('auth-submit').textContent = setup ? '创建并登录' : '登录';
+  $('auth-form').dataset.mode = setup ? 'setup' : 'login';
+  show('auth', true);
+};
+
+const session = async () => {
+  try { me = await api('/api/me'); }
+  catch { return false; }
+  $('who').textContent = me.user.username + ' · 到期 ' + me.expires_at;
+  show('auth', false); show('tabs', true);
+  await loadOverview();
+  return true;
+};
+
+const views = { overview: loadOverview, tasks: loadTasks, data: loadData, mcp: loadMcp, audit: loadAudit };
+const activate = (name) => {
+  document.querySelectorAll('#tabs button').forEach((b) => b.classList.toggle('active', b.dataset.view === name));
+  ['overview','tasks','data','mcp','audit'].forEach((view) => show('view-' + view, view === name));
+  (views[name] || (() => {}))();
+};
+document.querySelectorAll('#tabs button').forEach((button) => button.addEventListener('click', () => activate(button.dataset.view)));
+
+async function loadOverview() {
+  const data = await api('/api/overview');
+  const stats = [
+    ['采集任务', data.tasks.total + '（启用 ' + data.tasks.enabled + '）'],
+    ['新闻文章', data.news.articles], ['新闻正文', data.news.bodies],
+    ['K 线行数', data.storage.klines], ['原始载荷', data.storage.payloads],
+    ['快照', data.storage.quotes], ['活跃会话', data.sessions.active],
+    ['变更序号', data.changes.latest_seq],
+  ];
+  $('stats').innerHTML = stats.map(([k, v]) => '<div class="stat"><b>' + esc(v) + '</b><span>' + esc(k) + '</span></div>').join('');
+  $('runs').innerHTML = table(['#', '任务', '触发', '状态', '行数', '耗时', '开始'], (data.runs || []).map((run) =>
+    ['#' + run.id, esc(run.task_id), esc(run.trigger), '<span class="' + (run.status === 'success' ? 'ok' : (run.status === 'failed' ? 'err' : '')) + '">' + esc(run.status) + '</span>',
+     esc(run.rows), esc(run.duration_ms ?? '-') + ' ms', esc(run.started_at)]));
+}
+
+async function loadTasks() {
+  const data = await api('/api/tasks');
+  $('tasks').innerHTML = table(['#', '名称', 'dataset', 'method', 'mode', '调度', '分片/并发', '状态', '操作'], (data.tasks || []).map((task) => [
+    '#' + task.id, esc(task.name), '<span class="mono">' + esc(task.dataset) + '</span>', '<span class="mono">' + esc(task.method) + '</span>',
+    esc(task.mode), esc(task.schedule_kind) + (task.schedule_expr ? ' ' + esc(task.schedule_expr) : ''),
+    esc(task.shard_size) + '/' + esc(task.concurrency),
+    task.enabled ? '<span class="ok">启用</span>' : '<span class="muted">停用</span>',
+    '<button class="act small ghost" data-run="' + task.id + '">运行</button> <button class="act small ghost" data-toggle="' + task.id + '" data-enabled="' + task.enabled + '">' + (task.enabled ? '停用' : '启用') + '</button>'
+  ]));
+  document.querySelectorAll('[data-run]').forEach((button) => button.addEventListener('click', async () => {
+    try { await api('/api/tasks/' + button.dataset.run + '/run', { method: 'POST' }); button.textContent = '已触发'; }
+    catch (error) { button.textContent = error.message; }
+    setTimeout(() => { button.textContent = '运行'; loadTaskRuns(); }, 1500);
+  }));
+  document.querySelectorAll('[data-toggle]').forEach((button) => button.addEventListener('click', async () => {
+    await api('/api/tasks/' + button.dataset.toggle + '/toggle', {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ enabled: button.dataset.enabled !== 'true' }),
+    });
+    loadTasks();
+  }));
+  loadTaskRuns();
+}
+
+async function loadTaskRuns() {
+  const data = await api('/api/runs?limit=30');
+  $('task-runs').innerHTML = table(['#', '任务', '触发', '状态', '行数', '字节', '错误'], (data.runs || []).map((run) =>
+    ['#' + run.id, esc(run.task_id), esc(run.trigger), esc(run.status), esc(run.rows), esc(run.bytes), '<span class="err">' + esc(run.error || '') + '</span>']));
+}
+
+$('create-task').addEventListener('click', async () => {
+  $('task-msg').textContent = '提交中…';
+  let params;
+  try { params = JSON.parse($('t-params').value || '{}'); }
+  catch (error) { $('task-msg').textContent = 'params 不是合法 JSON'; return; }
+  const body = {
+    name: $('t-name').value, dataset: $('t-dataset').value, method: $('t-method').value,
+    params, mode: $('t-mode').value, schedule_kind: $('t-kind').value,
+    schedule_expr: $('t-expr').value || null,
+    shard_size: Number($('t-shard').value || 100), concurrency: Number($('t-conc').value || 1),
+    timeout_ms: Number($('t-timeout').value || 8000), retry: Number($('t-retry').value || 2),
+  };
+  try {
+    const created = await api('/api/tasks', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
+    $('task-msg').textContent = '已创建 #' + created.id;
+    loadTasks();
+  } catch (error) { $('task-msg').textContent = error.message; }
+});
+
+const dataRenderers = {
+  payloads: (rows) => table(['#', 'dataset', '代码', '日期', '抓取时间', '字节', ''], rows.map((row) =>
+    ['#' + row.id, '<span class="mono">' + esc(row.dataset) + '</span>', esc(row.code), esc(row.trade_date), esc(row.fetched_at), esc(row.bytes),
+     '<button class="act small ghost" data-payload="' + row.id + '">查看</button>'])),
+  klines: (rows) => table(['代码', '周期', '复权', '日期', '开', '高', '低', '收', '量', '额'], rows.map((row) =>
+    [esc(row.code), esc(row.period), esc(row.adjust), esc(row.trade_date), esc(row.open), esc(row.high), esc(row.low), esc(row.close), esc(row.volume), esc(row.amount)])),
+  quotes: (rows) => table(['代码', '时间', '现价', '昨收', '开', '高', '低', '量', '额'], rows.map((row) =>
+    [esc(row.code), esc(row.ts), esc(row.price), esc(row.pre_close), esc(row.open), esc(row.high), esc(row.low), esc(row.volume), esc(row.amount)])),
+  news: (rows) => table(['#', '时间', '来源', '范围', '标题'], rows.map((row) =>
+    ['#' + row.id, esc(row.published_at || row.first_seen_at), esc(row.source), esc(row.scope_key), esc(row.title)])),
+};
+
+async function loadData() {
+  const kind = $('d-kind').value;
+  const query = new URLSearchParams({ limit: '50' });
+  if ($('d-code').value) query.set('code', $('d-code').value.trim());
+  if (kind === 'payloads' && $('d-dataset').value) query.set('dataset', $('d-dataset').value.trim());
+  if (kind === 'klines') { /* period filter left to API defaults */ }
+  $('d-export').href = '/api/data/' + kind + '?' + query.toString() + '&format=csv';
+  try {
+    const data = await api('/api/data/' + kind + '?' + query.toString());
+    $('d-table').innerHTML = (dataRenderers[kind] || (() => '<div class="muted">未知数据集</div>'))(data.items || []);
+    $('d-msg').textContent = '共返回 ' + (data.items || []).length + ' 行';
+    document.querySelectorAll('[data-payload]').forEach((button) => button.addEventListener('click', async () => {
+      const detail = await api('/api/data/payloads/' + button.dataset.payload);
+      $('d-detail').textContent = JSON.stringify(detail.payload, null, 2);
+      show('d-detail-card', true);
+    }));
+  } catch (error) { $('d-msg').textContent = error.message; }
+}
+$('d-load').addEventListener('click', loadData);
+$('d-kind').addEventListener('change', loadData);
+
+async function loadMcp() {
+  const data = await api('/api/mcp/tools');
+  $('mcp-stats').innerHTML = [['MCP 工具', data.counts.tools], ['网关方法', data.counts.gateway_methods]]
+    .map(([k, v]) => '<div class="stat"><b>' + esc(v) + '</b><span>' + esc(k) + '</span></div>').join('');
+  $('mcp-tools').innerHTML = table(['工具', '状态', '说明', '操作'], data.tools.map((tool) => [
+    '<span class="mono">' + esc(tool.name) + '</span>',
+    tool.enabled ? '<span class="ok">启用</span>' : '<span class="muted">停用</span>',
+    '<span class="muted">' + esc((tool.schema && tool.schema.description) || '') + '</span>',
+    '<button class="act small ghost" data-mcp="' + esc(tool.short_name) + '" data-enabled="' + tool.enabled + '">' + (tool.enabled ? '停用' : '启用') + '</button>'
+  ]));
+  document.querySelectorAll('[data-mcp]').forEach((button) => button.addEventListener('click', async () => {
+    await api('/api/mcp/tools/' + button.dataset.mcp + '/toggle', {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ enabled: button.dataset.enabled !== 'true' }),
+    });
+    loadMcp();
+  }));
+  const calls = await api('/api/mcp/calls?limit=50');
+  $('mcp-calls').innerHTML = table(['#', '工具', '开始', '耗时', '结果'], (calls.items || []).map((call) =>
+    ['#' + call.id, '<span class="mono">' + esc(call.tool) + '</span>', esc(call.started_at), esc(call.duration_ms) + ' ms',
+     call.ok ? '<span class="ok">成功</span>' : '<span class="err">' + esc(call.error_code || '失败') + '</span>']));
+}
+
+async function loadAudit() {
+  const data = await api('/api/audit?limit=100');
+  $('audit').innerHTML = table(['id', '时间', '主体', '动作', '目标', 'IP'], (data.items || []).map((entry) =>
+    [esc(entry.id), esc(entry.ts), esc(entry.actor), '<span class="mono">' + esc(entry.action) + '</span>', esc(entry.target), esc(entry.ip || '')]));
+}
+
+$('auth-form').addEventListener('submit', async (event) => {
+  event.preventDefault();
+  const mode = $('auth-form').dataset.mode || 'login';
+  $('auth-msg').textContent = '';
+  try {
+    await api('/api/' + mode, {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ username: $('username').value, password: $('password').value }),
+    });
+    $('password').value = '';
+    if (!await session()) $('auth-msg').textContent = '登录成功但会话未生效';
+  } catch (error) { $('auth-msg').textContent = error.message; }
+});
+
+$('logout').addEventListener('click', async () => {
+  await fetch('/api/logout', { method: 'POST', credentials: 'same-origin' });
+  me = null; show('tabs', false); $('view-overview').classList.add('hidden'); show('auth', true);
+});
+
+boot();
+</script>
+</body>
+</html>
