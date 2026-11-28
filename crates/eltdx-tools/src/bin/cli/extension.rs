@@ -57,21 +57,6 @@ fn extended_endpoints(
     endpoints(host, port, MAC_EX_HOSTS, extra, wait)
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn extended_hostname_resolves_with_the_requested_port() -> Result<()> {
-        let addresses = extended_endpoints(Some("localhost"), 7727, false, Duration::from_secs(2))?;
-        assert!(!addresses.is_empty());
-        assert!(addresses
-            .iter()
-            .all(|address| address.ip().is_loopback() && address.port() == 7727));
-        Ok(())
-    }
-}
-
 fn with_ex(
     common: &Hq,
     port: i64,
@@ -899,3 +884,18 @@ const EX_MARKETS: &[(u8, &str, &str)] = &[
     (100, "CODE_MIRROR", ""),
     (102, "SZSE_INDEX", ""),
 ];
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn extended_hostname_resolves_with_the_requested_port() -> Result<()> {
+        let addresses = extended_endpoints(Some("localhost"), 7727, false, Duration::from_secs(2))?;
+        assert!(!addresses.is_empty());
+        assert!(addresses
+            .iter()
+            .all(|address| address.ip().is_loopback() && address.port() == 7727));
+        Ok(())
+    }
+}

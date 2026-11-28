@@ -148,7 +148,7 @@ class TradeApi(ApiBase):
                        count=count, include_raw=include_raw)
         bulk_execute = getattr(self._transport, "execute_trade_batch", None)
         if self._native_services:
-            bulk_execute = self._transport.sdk_trade_batch
+            bulk_execute = getattr(self._transport, "sdk_trade_batch")
         if callable(bulk_execute):
             result = bulk_execute(command_code("historical_ticks"), payload)
             if not isinstance(result, TradeBatch):
@@ -183,7 +183,7 @@ class TradeApi(ApiBase):
         payload = dict(code=code, start=start, count=count, include_raw=include_raw)
         bulk_execute = getattr(self._transport, "execute_trade_batch", None)
         if self._native_services:
-            bulk_execute = self._transport.sdk_trade_batch
+            bulk_execute = getattr(self._transport, "sdk_trade_batch")
         if callable(bulk_execute):
             result = bulk_execute(command_code("today_ticks"), payload)
             if not isinstance(result, TradeBatch):
@@ -257,7 +257,7 @@ class TradeApi(ApiBase):
                 batch_size,
             )
         if self._native_collect_arguments(code, trading_date, page_size, include_raw, max_pages, bulk=True):
-            return self._transport.sdk_trade_read(
+            return getattr(self._transport, "sdk_trade_read")(
                 command_code("historical_ticks"),
                 dict(code=code, trading_date=trading_date, start=0, count=page_size, include_raw=include_raw),
                 collect=True, opening=False, max_pages=_native_page_limit(max_pages), bulk=True,
@@ -347,7 +347,7 @@ class TradeApi(ApiBase):
 
     def _query(self, name: str, **payload):
         if self._native_services:
-            return self._transport.sdk_trades(command_code(name), payload)
+            return getattr(self._transport, "sdk_trades")(command_code(name), payload)
         return self._execute(name, **payload)
 
     def _find_opening_match(self, code: str, trading_date, *, page_size: int, max_pages: int | None, include_raw: bool):
@@ -418,7 +418,7 @@ class TradeApi(ApiBase):
         if trading_date is not None:
             name = "historical_ticks"
             payload["trading_date"] = trading_date
-        return self._transport.sdk_trade_read(command_code(name), payload, collect=not opening,
+        return getattr(self._transport, "sdk_trade_read")(command_code(name), payload, collect=not opening,
                                                opening=opening, max_pages=_native_page_limit(max_pages))
 
 

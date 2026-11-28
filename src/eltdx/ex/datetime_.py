@@ -1,3 +1,4 @@
+# ruff: noqa: F401 - compatibility imports preserved for native ABI and contract snapshot
 """扩展行情日期时间解码（分钟级/日线两种格式）。"""
 
 from __future__ import annotations
@@ -5,6 +6,7 @@ from __future__ import annotations
 from sys import modules as _MODULES
 
 from eltdx.ex._binary import unpack_from
+
 
 
 def get_datetime_minute(data: bytes | bytearray, pos: int) -> tuple[int, int, int, int, int, int]:

@@ -71,10 +71,10 @@ def test_sdist_rejects_python_bytecode(tmp_path: Path) -> None:
         inspect_sdist(sdist)
 
 
-def test_native_workflow_uses_the_supported_locked_sdist_boundary() -> None:
+def test_native_workflow_locks_release_wheels_without_locking_sdist_consumers() -> None:
     workflow = (ROOT / ".github/workflows/native-wheels.yml").read_text(encoding="utf-8")
     pyproject = (ROOT / "pyproject.toml").read_text(encoding="utf-8")
     assert "python -m maturin sdist --out dist" in workflow
     assert "maturin sdist --locked" not in workflow
-    assert "[tool.maturin]" in pyproject
-    assert "locked = true" in pyproject
+    assert "args: --release --locked --out dist" in workflow
+    assert "locked = true" not in pyproject

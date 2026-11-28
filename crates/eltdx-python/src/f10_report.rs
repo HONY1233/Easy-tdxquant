@@ -168,13 +168,10 @@ pub fn f10_report<'py>(
             }
             let params = client.getattr("params")?;
             let date = module.getattr("_date_text")?.call1((date,))?;
-            return Ok(params
-                .call1((
-                    definitions.last().expect("capital detail definition").entry,
-                    code,
-                    date,
-                ))?
-                .unbind());
+            let definition = definitions.last().ok_or_else(|| {
+                pyo3::exceptions::PyRuntimeError::new_err("capital detail definition is missing")
+            })?;
+            return Ok(params.call1((definition.entry, code, date))?.unbind());
         }
         return execute_selected(&client, table.as_any().get_item(&section)?);
     }

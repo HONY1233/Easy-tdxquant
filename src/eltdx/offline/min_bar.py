@@ -1,3 +1,4 @@
+# ruff: noqa: F401 - compatibility imports preserved for native ABI and contract snapshot
 """本地分钟 K 线读取与编码（``.5`` / ``.lc1`` / ``.lc5`` 文件）。
 
 ``.5`` 文件的 OHLC 为整数（实际价格 × 100）；``.lc1`` / ``.lc5`` 文件的

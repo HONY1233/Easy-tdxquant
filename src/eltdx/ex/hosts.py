@@ -1,3 +1,4 @@
+# ruff: noqa: F401 - compatibility imports preserved for native ABI and contract snapshot
 """扩展行情（端口 7727）默认服务器地址与用户可覆盖配置层。
 
 候选主机来源优先级（高 → 低）：
@@ -27,6 +28,7 @@ from threading import get_ident
 from typing import Any, Iterable, Mapping
 
 from eltdx._paths import data_dir
+
 
 DEFAULT_EX_PORT: int = 7727
 

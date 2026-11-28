@@ -194,7 +194,11 @@ def test_native_bar_alignment_keeps_original_numeric_and_calendar_errors():
 
 def test_native_mac_ymd_keeps_custom_floor_mod_order_and_captured_date_constructor(monkeypatch):
     events = []
-    original = lambda *parts: events.append(("date", parts)) or parts
+
+    def original(*parts):
+        events.append(("date", parts))
+        return parts
+
     monkeypatch.setattr(mac, "_date", original)
 
     class Number:

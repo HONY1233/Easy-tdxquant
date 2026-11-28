@@ -31,8 +31,8 @@ class CodeApi(ApiBase):
             and isinstance(page_size, int)
             and not isinstance(page_size, bool)
         ):
-            items = []
-            for page in self._transport.sdk_security_pages(market, page_size):
+            items: list[object] = []
+            for page in getattr(self._transport, "sdk_security_pages")(market, page_size):
                 if not isinstance(page, (list, tuple)):
                     return items
                 sink = self._metadata_sink() if self._metadata_sink is not None else None
@@ -143,7 +143,7 @@ class CodeApi(ApiBase):
         result = []
         for start in range(0, len(rows), 80):
             if self._native_services:
-                result.extend(self._transport.sdk_suspended(
+                result.extend(getattr(self._transport, "sdk_suspended")(
                     [item.full_code for item in rows[start : start + 80]],
                 ))
                 continue
@@ -162,7 +162,7 @@ class CodeApi(ApiBase):
 
     def _query(self, name: str, **payload):
         if self._native_services:
-            return self._transport.sdk_security_request(command_code(name), payload)
+            return getattr(self._transport, "sdk_security_request")(command_code(name), payload)
         return self._execute(name, **payload)
 
     def _native_selection(self, rows, selection: str, *, identifiers: bool = False):
@@ -176,7 +176,7 @@ class CodeApi(ApiBase):
                             and (not identifiers or (type(getattr(row, "exchange", None)) is str
                                                      and type(getattr(row, "code", None)) is str))
                             for row in rows):
-                indices = self._transport.sdk_select_codes(
+                indices = getattr(self._transport, "sdk_select_codes")(
                     [(row.category, row.name) for row in rows], selection,
                 )
                 return [rows[index] for index in indices]

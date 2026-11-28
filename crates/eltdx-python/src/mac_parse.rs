@@ -83,7 +83,7 @@ impl<'py> Reader<'py> {
                 fmt,
                 &self.body,
                 pos,
-                self.format(context, &[index.clone()])?,
+                self.format(context, std::slice::from_ref(index))?,
             ))?,
             count,
         )
@@ -634,7 +634,7 @@ fn describe<'py>(r: &Reader<'py>, kind: &Bound<'py, PyAny>) -> PyResult<[Bound<'
         } else {
             "区间放量涨"
         })?;
-        let first = r.format("{:.1f}倍", &[b.clone()])?;
+        let first = r.format("{:.1f}倍", std::slice::from_ref(b))?;
         let last = if c.eq(0)? {
             r.s("")?
         } else {
@@ -687,7 +687,7 @@ fn describe<'py>(r: &Reader<'py>, kind: &Bound<'py, PyAny>) -> PyResult<[Bound<'
             &[alternate[1].clone(), alternate[2].clone()],
         )?;
     } else {
-        desc = r.format("异动类型{:#04x}", &[kind.clone()])?;
+        desc = r.format("异动类型{:#04x}", std::slice::from_ref(kind))?;
     }
     Ok([desc, value])
 }
@@ -988,7 +988,7 @@ fn inventory<'py>(r: &Reader<'py>, command: &Bound<'py, PyAny>, kind: &str) -> P
                 &r.body,
                 &pos,
                 4,
-                r.format("ChartSamplingCmd price[{}]", &[index.clone()])?,
+                r.format("ChartSamplingCmd price[{}]", std::slice::from_ref(&index))?,
             ))?;
             let values = r.row("<f", &pos, "chart_sampling price[{}]", &index, 1)?;
             results.append(&values[0])?;
@@ -1003,7 +1003,7 @@ fn inventory<'py>(r: &Reader<'py>, command: &Bound<'py, PyAny>, kind: &str) -> P
                 &r.body,
                 &pos,
                 command.getattr("_RECORD_SIZE")?,
-                r.format("GoodsListCmd record[{}]", &[index.clone()])?,
+                r.format("GoodsListCmd record[{}]", std::slice::from_ref(&index))?,
             ))?;
             let method = r.module.getattr("unpack_from")?;
             let fmt = command.getattr("_RECORD_FMT")?;

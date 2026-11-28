@@ -179,10 +179,13 @@ pub fn bar_time_align<'py>(
                 let append = output.getattr("append")?;
                 let replace = module.getattr("replace")?;
                 let when = builtin(&module, "getattr")?.call1((&bar, &field))?;
+                let elapsed = elapsed.as_ref().ok_or_else(|| {
+                    pyo3::exceptions::PyRuntimeError::new_err("prepared timedelta is missing")
+                })?;
                 let when = py
                     .import("operator")?
                     .getattr("add")?
-                    .call1((when, elapsed.as_ref().expect("prepared timedelta")))?;
+                    .call1((when, elapsed))?;
                 let kwargs = PyDict::new(py);
                 kwargs.set_item(&field, when)?;
                 append.call1((replace.call((bar,), Some(&kwargs))?,))?;

@@ -11,7 +11,7 @@ import pytest
 
 from eltdx.api.corporate import CorporateApi
 from eltdx.exceptions import MissingCodesWarning, ProtocolError
-from eltdx.models import CapitalChangeBatch, FinanceBatch
+from eltdx.models import CapitalChangeBatch
 from eltdx.protocol.commands import parse_command_response
 from eltdx.protocol.frame import ResponseFrame
 from eltdx.transport import PooledSocketTransport, SocketTransport

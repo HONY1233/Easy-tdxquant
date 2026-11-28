@@ -1,3 +1,4 @@
+# ruff: noqa: F401 - compatibility imports preserved for native ABI and contract snapshot
 """离线扩展市场日线写入 —— 追加 :class:`~eltdx.offline.models.ExDailyBar`。"""
 
 from __future__ import annotations
@@ -25,8 +26,8 @@ def get_last_ex_bar_date(filepath: str | Path) -> int | None:
     plan = native.offline_last_record_plan(filepath, _EX_DAILY_FMT, sys.modules[__name__], False)
     if plan is None:
         return None
-    filepath, offset, size = plan
-    with filepath.open("rb") as handle:
+    planned_path, offset, size = plan
+    with Path(planned_path).open("rb") as handle:
         handle.seek(offset)
         last_record = handle.read(size)
     return native.offline_last_record_value(last_record, _EX_DAILY_FMT, sys.modules[__name__], False)
@@ -46,14 +47,14 @@ def append_ex_daily_bar(filepath: str | Path, bars: list[ExDailyBar]) -> int:
     from eltdx._native_abi import load_native
 
     native = load_native()
-    filepath, new_bars = native.offline_prepare_append(
+    target_path, new_bars = native.offline_prepare_append(
         filepath, bars, lambda path: get_last_ex_bar_date(path), _EX_DAILY_FMT.size,
         "扩展市场日线", sys.modules[__name__], False
     )
     if not new_bars:
         return 0
     encoded = native.offline_encode_batch(new_bars, lambda bar: encode_ex_daily_bar(bar), None)
-    with filepath.open("ab") as handle:
+    with Path(target_path).open("ab") as handle:
         handle.write(encoded)
     return len(new_bars)
 

@@ -142,10 +142,8 @@ pub fn f10_normalize_code<'py>(
     let mut text = builtin(&module, "str")?
         .call1((&code,))?
         .call_method0("strip")?;
-    if kind == "us" || kind == "hk" {
-        if text.contains(".")? {
-            text = text.call_method1("split", (".",))?.get_item(-1)?;
-        }
+    if (kind == "us" || kind == "hk") && text.contains(".")? {
+        text = text.call_method1("split", (".",))?.get_item(-1)?;
     }
     match kind {
         "us" => {
@@ -322,6 +320,7 @@ fn call_template<'py>(
     call_template_values(py, params, entry, definition, code, section, module, inputs)
 }
 
+#[allow(clippy::too_many_arguments)]
 fn call_template_values<'py>(
     py: Python<'py>,
     params: Bound<'py, PyAny>,
@@ -498,7 +497,9 @@ pub fn f10_sector_endpoint<'py>(
         }
         "qh_variety_info" => {
             if section.eq("pzjj")? {
-                sector_selection(method, "pzjj").expect("built-in section")
+                sector_selection(method, "pzjj").ok_or_else(|| {
+                    pyo3::exceptions::PyValueError::new_err("missing built-in F10 section")
+                })?
             } else {
                 sector_lookup(method, &section, true)?
             }
@@ -539,10 +540,14 @@ pub fn f10_sector_endpoint<'py>(
             if section.eq("cfghyfb")? {
                 sector_weights_without_date()
             } else {
-                sector_dynamic(method).expect("built-in sector")
+                sector_dynamic(method).ok_or_else(|| {
+                    pyo3::exceptions::PyValueError::new_err("missing built-in F10 sector")
+                })?
             }
         }
-        "qh_index_info" | "qh_index_valuation" => sector_dynamic(method).expect("built-in sector"),
+        "qh_index_info" | "qh_index_valuation" => sector_dynamic(method).ok_or_else(|| {
+            pyo3::exceptions::PyValueError::new_err("missing built-in F10 sector")
+        })?,
         _ => {
             return Err(pyo3::exceptions::PyValueError::new_err(format!(
                 "unknown F10 sector endpoint: {method}"

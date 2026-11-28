@@ -378,7 +378,9 @@ impl MacBitSlots {
             let remaining = self
                 .remaining
                 .as_ref()
-                .expect("installed legacy bit state")
+                .ok_or_else(|| {
+                    pyo3::exceptions::PyRuntimeError::new_err("legacy bit state is missing")
+                })?
                 .bind(py);
             if !remaining.is_truthy()? {
                 self.done = true;

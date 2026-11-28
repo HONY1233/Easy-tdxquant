@@ -1,3 +1,4 @@
+# ruff: noqa: F401 - compatibility imports preserved for native ABI and contract snapshot
 """本地日线 K 线读取与编码（``.day`` 文件）。
 
 ``.day`` 记录为 32 字节小端序：日期(YYYYMMDD) 开盘 最高 最低 收盘 成交额

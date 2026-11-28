@@ -1,3 +1,4 @@
+# ruff: noqa: F401 - compatibility imports preserved for native ABI and contract snapshot
 """获取扩展行情市场列表。"""
 
 from __future__ import annotations

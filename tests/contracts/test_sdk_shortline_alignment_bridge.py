@@ -12,7 +12,9 @@ PREVIOUS = date(2024, 5, 31)
 
 
 def test_dominant_date_counts_missing_rows_in_coverage_and_uses_later_tie():
-    row = lambda value: SimpleNamespace(stats_date=value)
+    def row(value):
+        return SimpleNamespace(stats_date=value)
+
     values = [row("20240603")] * 19 + [row(None)]
     assert shortline._dominant_date_and_coverage(iter(values)) == ("20240603", 0.95)
     assert shortline._dominant_date_and_coverage([row("20240531"), row("20240603")]) == ("20240603", 0.5)
@@ -38,7 +40,9 @@ def test_dominant_date_materializes_before_reading_and_keeps_double_property_acc
 
 
 def test_stats_date_error_precedence_and_exact_coverage_message():
-    values = lambda value, n=20: {i: SimpleNamespace(stats_date=value) for i in range(n)}
+    def values(value, n=20):
+        return {i: SimpleNamespace(stats_date=value) for i in range(n)}
+
     resource = SimpleNamespace(stat={}, stat2=values("20240603"))
     with pytest.raises(ResourceFormatError, match="has no dominant date"):
         shortline._validate_stats_resource_dates(resource, target=DAY, previous=PREVIOUS)

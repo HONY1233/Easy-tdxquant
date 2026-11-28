@@ -223,7 +223,9 @@ pub fn f10_object_alias<'py>(
             }
         }
     };
-    let request: i64 = request.parse().expect("built-in request id");
+    let request: i64 = request.parse().map_err(|error| {
+        pyo3::exceptions::PyValueError::new_err(format!("invalid built-in request id: {error}"))
+    })?;
     Ok(client
         .call_method(target, (code, request), Some(&kwargs))?
         .unbind())

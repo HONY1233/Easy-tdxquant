@@ -1,3 +1,4 @@
+# ruff: noqa: F401 - compatibility imports preserved for native ABI and contract snapshot
 """MAC 协议高层同步 API：:class:`MacClient`。
 
 移植自 easy_tdx ``mac/client.py`` 的 **同步** 子集。为满足 eltdx 零第三方依赖

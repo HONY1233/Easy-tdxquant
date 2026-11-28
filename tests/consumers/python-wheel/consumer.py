@@ -305,7 +305,9 @@ def exercise_f10(TdxClient, SocketTransport):
         require(generic.rows == ({"x": 1, "x__2": 2},), "F10 duplicate column projection changed")
         require(f10.stock_info("sh600000").rows == ({"name": "stock"},), "named F10 result changed")
         with socket.socket() as hq:
-            hq.bind(("127.0.0.1", 0)); hq.listen(); hq.settimeout(0.05)
+            hq.bind(("127.0.0.1", 0))
+            hq.listen()
+            hq.settimeout(0.05)
             client = TdxClient(transport=SocketTransport(["%s:%d" % hq.getsockname()], timeout=3,
                                                        heartbeat_interval=None), probe_hosts=False)
             client.f10 = f10
@@ -330,7 +332,9 @@ def exercise_f10(TdxClient, SocketTransport):
         require(len(observed) == len(cases) and not errors, "HTTP consumer source obligations failed: %r" % errors)
         return {"requests": observed, "hq_connections": 0}
     finally:
-        server.shutdown(); server.server_close(); worker.join(5)
+        server.shutdown()
+        server.server_close()
+        worker.join(5)
         require(not worker.is_alive(), "HTTP consumer listener did not stop")
 
 

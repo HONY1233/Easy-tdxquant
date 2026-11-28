@@ -42,7 +42,7 @@ class CorporateApi(ApiBase):
         if (self._native_services and command_name in ("capital_changes", "finance_batch")
                 and type(self._transport) in _NATIVE_CORPORATE_EXECUTE
                 and getattr(execute, "__func__", None) is _NATIVE_CORPORATE_EXECUTE[type(self._transport)]):
-            execute = self._transport.sdk_corporate
+            execute = getattr(self._transport, "sdk_corporate")
         return execute(command_code(command_name), payload)
 
     def capital_changes(
@@ -102,12 +102,14 @@ class CorporateApi(ApiBase):
                 CapitalChangeBlock, CapitalChangeBatch,
             )
         remaining = codes
-        blocks = []
-        raw_payloads = []
+        blocks: list[CapitalChangeBlock] = []
+        raw_payloads: list[bytes] = []
         while remaining:
             response = self._execute(
                 "capital_changes", codes=remaining, include_raw=include_raw
             )
+            returned: tuple[CapitalChangeBlock, ...]
+            payloads: tuple[bytes, ...]
             if isinstance(response, CapitalChangeBlock):
                 returned = (response,)
                 payloads = (response.raw_payload,) if response.raw_payload else ()

@@ -56,7 +56,14 @@ impl<'py> PageCall<'py> {
                 let board = if self.kind == PageKind::Quotes {
                     builtin(&self.module, "int")?.call1((self.arg(0)?,))?
                 } else {
-                    self.board.as_ref().expect("prepared member board").clone()
+                    self.board
+                        .as_ref()
+                        .ok_or_else(|| {
+                            pyo3::exceptions::PyRuntimeError::new_err(
+                                "prepared member board is missing",
+                            )
+                        })?
+                        .clone()
                 };
                 kwargs.set_item("board_code", board)?;
                 kwargs.set_item(
@@ -71,7 +78,11 @@ impl<'py> PageCall<'py> {
                 )?;
                 kwargs.set_item(
                     "fields",
-                    self.fields.as_ref().expect("prepared quote fields"),
+                    self.fields.as_ref().ok_or_else(|| {
+                        pyo3::exceptions::PyRuntimeError::new_err(
+                            "prepared quote fields are missing",
+                        )
+                    })?,
                 )?;
                 kwargs.set_item("exclude_flags", self.arg(5)?)?;
                 constructor.call((), Some(&kwargs))
@@ -90,7 +101,11 @@ impl<'py> PageCall<'py> {
             PageKind::Transactions => self.module.getattr("SymbolTransactionCmd")?.call1((
                 self.arg(0)?,
                 self.arg(1)?,
-                self.date.as_ref().expect("prepared transaction date"),
+                self.date.as_ref().ok_or_else(|| {
+                    pyo3::exceptions::PyRuntimeError::new_err(
+                        "prepared transaction date is missing",
+                    )
+                })?,
                 offset,
                 size,
             )),
@@ -187,7 +202,9 @@ pub fn mac_page_query<'py>(
             constructor.call1((
                 call.arg(0)?,
                 call.arg(1)?,
-                call.date.as_ref().expect("prepared date"),
+                call.date.as_ref().ok_or_else(|| {
+                    pyo3::exceptions::PyRuntimeError::new_err("prepared date is missing")
+                })?,
                 &start,
                 size,
             ))?

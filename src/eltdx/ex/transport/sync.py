@@ -1,3 +1,4 @@
+# ruff: noqa: F401 - compatibility imports preserved for native ABI and contract snapshot
 """扩展行情同步 TCP 连接（端口 7727）与主机并发探活。"""
 
 from __future__ import annotations
@@ -92,6 +93,9 @@ class _ProbeRegistry:
     """
 
     __slots__ = ("_lock", "_connections")
+
+    _lock: threading.Lock
+    _connections: list[ExTdxConnection]
 
     def __init__(self) -> None:
         from eltdx._native_abi import load_native
@@ -291,6 +295,8 @@ class ExTdxConnection:
     ) -> None:
         from eltdx._native_abi import load_native
         load_native().extension_connection_init("ex", self, (host, port, timeout, mac_ex_mode, send_setup), _MODULES[__name__])
+
+    _lock: threading.Lock
 
     def connect(self) -> None:
         """建立 TCP 连接并完成 exhq 会话握手；失败抛 TransportError。

@@ -1,3 +1,4 @@
+# ruff: noqa: F401 - compatibility imports preserved for native ABI and contract snapshot
 """MAC 协议二进制解析辅助。
 
 提供带边界检查的 ``unpack_from`` / ``slice_bytes``，异常统一使用
@@ -11,6 +12,7 @@ from sys import modules as _MODULES
 from typing import Any
 
 from ..exceptions import ProtocolError
+
 
 
 def require_bytes(

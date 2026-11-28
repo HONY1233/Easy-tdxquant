@@ -8,6 +8,7 @@ use pyo3::prelude::*;
 use pyo3::types::{PyBytes, PyDict, PySlice, PyTuple};
 
 #[pyfunction]
+#[allow(clippy::too_many_arguments)]
 pub fn money_flow_history<'py>(
     py: Python<'py>,
     api: Bound<'py, PyAny>,

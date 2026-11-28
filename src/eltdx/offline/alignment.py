@@ -1,3 +1,4 @@
+# ruff: noqa: F401 - compatibility imports preserved for native ABI and contract snapshot
 """追加写入前的记录对齐校验。
 
 通达信数据文件（``.day`` / ``.lc1`` / ``.5``）是定长记录的裸文件：每条记录
@@ -21,6 +22,7 @@ from pathlib import Path
 import sys
 
 from eltdx.exceptions import ResourceFormatError
+
 
 __all__ = ["ensure_aligned_for_append"]
 

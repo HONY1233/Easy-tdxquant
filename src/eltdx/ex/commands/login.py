@@ -1,3 +1,4 @@
+# ruff: noqa: F401 - compatibility imports preserved for native ABI and contract snapshot
 """MAC EX 扩展行情登录命令（msg_id=0x2454）。"""
 
 from __future__ import annotations

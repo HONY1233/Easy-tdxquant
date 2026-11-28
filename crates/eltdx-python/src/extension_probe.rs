@@ -319,6 +319,7 @@ pub fn extension_probe_prepare<'py>(
 }
 
 #[pyfunction]
+#[allow(clippy::too_many_arguments)]
 pub fn extension_probe_collect<'py>(
     py: Python<'py>,
     domain: &str,

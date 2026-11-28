@@ -41,7 +41,7 @@ def build_adjustment_factor_response(
         from eltdx.transport.native import native_module
 
         composed = native_module().adjustment_factors(
-            [(event.date.toordinal(), (event.c1_value, event.c2_value, event.c3_value, event.c4_value))
+            [(event.date.toordinal(), (event.c1_value, event.c2_value, event.c3_value, event.c4_value))  # type: ignore[union-attr]
              for event in events],
             None if resolved_anchor is None else resolved_anchor.toordinal(),
         )

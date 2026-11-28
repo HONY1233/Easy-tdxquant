@@ -61,7 +61,7 @@ class DelistedBarApi(ApiBase):
         if self._native_services and type(all_pages) is bool and _native_bar_arguments(
             start, include_raw, max_pages if all_pages else None, "start"
         ):
-            return self._transport.sdk_bars(
+            return getattr(self._transport, "sdk_bars")(
                 command_code("delisted_bars"),
                 dict(code=code, start=start, count=page_size if all_pages else count,
                      include_raw=include_raw),

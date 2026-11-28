@@ -1,3 +1,4 @@
+# ruff: noqa: F401 - compatibility imports preserved for native ABI and contract snapshot
 """离线分钟线写入 —— 将 :class:`~eltdx.offline.models.MinBar` 追加到分钟线文件。"""
 
 from __future__ import annotations
@@ -37,8 +38,8 @@ def _last_datetime(filepath: str | Path, fmt_size: int) -> tuple[int, int, int, 
     plan = native.offline_last_record_plan(filepath, fmt_size, sys.modules[__name__], True)
     if plan is None:
         return None
-    filepath, offset, size = plan
-    with filepath.open("rb") as handle:
+    planned_path, offset, size = plan
+    with Path(planned_path).open("rb") as handle:
         handle.seek(offset)
         last_record = handle.read(size)
     return native.offline_last_record_value(last_record, None, sys.modules[__name__], True)
@@ -75,12 +76,12 @@ def _append(
     from eltdx._native_abi import load_native
 
     native = load_native()
-    filepath, new_bars = native.offline_prepare_append(
+    target_path, new_bars = native.offline_prepare_append(
         filepath, bars, last_dt_fn, record_size, kind, sys.modules[__name__], True
     )
     if not new_bars:
         return 0
-    with filepath.open("ab") as handle:
+    with Path(target_path).open("ab") as handle:
         handle.write(native.offline_encode_batch(new_bars, encode, None))
     return len(new_bars)
 

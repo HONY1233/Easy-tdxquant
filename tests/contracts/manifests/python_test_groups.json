@@ -16,6 +16,7 @@
       "tests/contracts/test_python_test_groups.py",
       "tests/contracts/test_release_evidence_index.py",
       "tests/contracts/test_response_dto_contract.py",
+      "tests/contracts/test_rust_sdk_registry_consumer.py",
       "tests/contracts/test_runtime_memory_bounds.py",
       "tests/contracts/test_runtime_surfaces_contract.py",
       "tests/contracts/test_sdk_auction_domain_bridge.py",

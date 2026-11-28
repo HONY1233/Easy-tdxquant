@@ -1,3 +1,4 @@
+# ruff: noqa: F811 - native helper resolves the ``date`` import through globals()
 """User-facing scenario helpers.
 
 The helpers in this module intentionally compose existing APIs instead of
@@ -8,14 +9,14 @@ parsing protocol frames directly. Low-level command ownership stays in
 from __future__ import annotations
 
 import weakref
-from collections.abc import Iterable, Mapping, Sequence
+from collections.abc import Iterable, Mapping, Sequence  # noqa: F401 - resolved by native helper through globals()
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, replace
-from datetime import date
+from datetime import date  # noqa: F401 - resolved by native helper through globals()
 from typing import TYPE_CHECKING, Any
 
 from eltdx.models import QuoteRefreshRecord, QuoteSnapshot
-from eltdx.protocol.unit import ID_TO_MARKET, normalize_code
+from eltdx.protocol.unit import ID_TO_MARKET, normalize_code  # noqa: F401 - native helper resolves ID_TO_MARKET through globals()
 
 from .shortline import (
     ShortlineIndicator as ShortlineIndicator,
@@ -411,10 +412,10 @@ class HelperApi:
         if count is None or (type(count) is int and count <= 2**63 - 1):
             from eltdx.transport.native import native_module
 
-            rows = native_module().helper_rank(
+            native_rows = native_module().helper_rank(
                 self, category, sort_by, count, ascending, RealtimeRankRow, _float, _int,
             )
-            return RealtimeRankTable(category=category, sort_by=sort_by, rows=rows)
+            return RealtimeRankTable(category=category, sort_by=sort_by, rows=native_rows)
         # Retain custom count arithmetic and arbitrary-width integer behavior.
         rows: list[RealtimeRankRow] = []
         start = 0

@@ -32,5 +32,5 @@ class CompanyInfoApi(ApiBase):
 
     def _query(self, name: str, **payload):
         if self._native_services:
-            return self._transport.sdk_company_info(command_code(name), payload)
+            return getattr(self._transport, "sdk_company_info")(command_code(name), payload)
         return self._execute(name, **payload)

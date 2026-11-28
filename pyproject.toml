@@ -65,7 +65,8 @@ manifest-path = "crates/eltdx-python/Cargo.toml"
 python-source = "src"
 module-name = "eltdx._native"
 bindings = "pyo3"
-locked = true
+# Release workflows pass --locked explicitly. An sdist prunes non-Python workspace
+# members, so consumers must be allowed to reconcile the packaged Cargo.lock.
 include = [
   { path = "Cargo.toml", format = "sdist" },
   { path = "Cargo.lock", format = "sdist" },

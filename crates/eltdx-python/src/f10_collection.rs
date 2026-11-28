@@ -36,6 +36,7 @@ fn project<'py>(
 }
 
 #[pyfunction]
+#[allow(clippy::too_many_arguments)]
 pub fn f10_collect<'py>(
     py: Python<'py>,
     client: Bound<'py, PyAny>,

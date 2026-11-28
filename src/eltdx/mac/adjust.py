@@ -1,3 +1,4 @@
+# ruff: noqa: F401 - compatibility imports preserved for native ABI and contract snapshot
 """本地前复权（QFQ）重算（共享 Rust 核心，零第三方 Python 依赖）。
 
 通达信 MAC 服务端在 QFQ 模式下，对长期重度除权股票的深层历史页会返回

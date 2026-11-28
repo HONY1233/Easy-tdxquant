@@ -6,10 +6,10 @@ import hashlib
 import json
 import os
 import re
-import struct
+import struct  # noqa: F401 - resolved by native board helpers through globals()
 import weakref
 from dataclasses import dataclass
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timezone  # noqa: F401 - native board helpers resolve these through globals()
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 

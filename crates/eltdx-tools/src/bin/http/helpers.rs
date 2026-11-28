@@ -343,42 +343,6 @@ fn f10_collection(sdk: &HelperService, name: &str, code: &str) -> Result<Value> 
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn collection_cache_normalizes_keys_and_respects_refresh_and_clear() -> Result<()> {
-        let cache = CollectionCache::default();
-        assert_eq!(
-            cache.get_or_load("index_etfs", " SH000300 ", false, || Ok(json!(1)))?,
-            json!(1)
-        );
-        let unavailable = || Err(RpcError::internal("upstream unavailable"));
-        assert_eq!(
-            cache.get_or_load("index_etfs", "sh000300", false, unavailable)?,
-            json!(1)
-        );
-        assert_eq!(
-            cache.get_or_load("index_members", "sh000300", false, || Ok(json!(2)))?,
-            json!(2)
-        );
-        assert_eq!(
-            cache.get_or_load("index_etfs", "sh000300", true, || Ok(json!(3)))?,
-            json!(3)
-        );
-        assert_eq!(
-            cache.get_or_load("index_etfs", "sh000300", false, unavailable)?,
-            json!(3)
-        );
-        cache.clear()?;
-        assert!(cache
-            .get_or_load("index_etfs", "sh000300", false, unavailable)
-            .is_err());
-        Ok(())
-    }
-}
-
 fn f10_market(id: Option<AshareCode>) -> Option<&'static str> {
     match id?.market().get() {
         0 => Some("sz"),
@@ -802,4 +766,40 @@ fn auction(sdk: &HelperService, args: &Arguments) -> Result<Value> {
         "open_volume": data.open_volume().map(lots), "open_amount": data.open_amount().map(amount),
         "open_change_pct": data.open_change().map(ratio)}),
     )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn collection_cache_normalizes_keys_and_respects_refresh_and_clear() -> Result<()> {
+        let cache = CollectionCache::default();
+        assert_eq!(
+            cache.get_or_load("index_etfs", " SH000300 ", false, || Ok(json!(1)))?,
+            json!(1)
+        );
+        let unavailable = || Err(RpcError::internal("upstream unavailable"));
+        assert_eq!(
+            cache.get_or_load("index_etfs", "sh000300", false, unavailable)?,
+            json!(1)
+        );
+        assert_eq!(
+            cache.get_or_load("index_members", "sh000300", false, || Ok(json!(2)))?,
+            json!(2)
+        );
+        assert_eq!(
+            cache.get_or_load("index_etfs", "sh000300", true, || Ok(json!(3)))?,
+            json!(3)
+        );
+        assert_eq!(
+            cache.get_or_load("index_etfs", "sh000300", false, unavailable)?,
+            json!(3)
+        );
+        cache.clear()?;
+        assert!(cache
+            .get_or_load("index_etfs", "sh000300", false, unavailable)
+            .is_err());
+        Ok(())
+    }
 }
