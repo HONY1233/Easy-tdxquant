@@ -168,7 +168,10 @@ def test_native_ex_constructor_does_not_add_strict_wire_narrowing():
 
 def test_native_ex_request_captures_pack_before_attribute_side_effect(monkeypatch):
     events = []
-    original_pack = lambda *args: events.append(args) or b"payload"
+
+    def original_pack(*args):
+        events.append(args)
+        return b"payload"
 
     class Command(quote.GetExInstrumentQuoteCmd):
         @property

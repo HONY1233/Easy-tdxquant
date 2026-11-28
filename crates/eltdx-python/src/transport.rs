@@ -346,6 +346,7 @@ impl NativeEngine {
         service::resource(py, self.legacy.clone(), request, None)
     }
 
+    #[allow(clippy::too_many_arguments)]
     #[pyo3(signature = (command, payload, *, collect=false, opening=false, max_pages=None, bulk=false))]
     fn sdk_trade_read(
         &self,

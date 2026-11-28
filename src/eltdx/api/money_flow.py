@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-import json
+import json  # noqa: F401 - resolved by native money-flow helpers through globals()
 from collections.abc import Sequence
 from concurrent.futures import ThreadPoolExecutor
 from threading import Lock
@@ -11,7 +11,7 @@ from eltdx.exceptions import TransportError
 from eltdx.models import MoneyFlowBatch, MoneyFlowBlock
 from eltdx.models.money_flow import FundFlowRangeSeries
 from eltdx.protocol.constants import MAX_KLINE_PAGE_SIZE, TYPE_MONEY_FLOW
-from eltdx.protocol.unit import normalize_code, split_code
+from eltdx.protocol.unit import normalize_code, split_code  # noqa: F401 - native helper resolves split_code through globals()
 from eltdx.transport import PooledSocketTransport, SocketTransport
 from eltdx.transport.native import native_module
 

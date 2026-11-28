@@ -55,7 +55,7 @@ class AuctionApi(ApiBase):
         # host-selection policy. Overrides/factories keep their execute hook.
         if (self._native_services and type(transport) in _NATIVE_AUCTION_EXECUTE
                 and getattr(execute, "__func__", None) is _NATIVE_AUCTION_EXECUTE[type(transport)]):
-            execute = transport.sdk_auction
+            execute = getattr(transport, "sdk_auction")
         return execute(
             command_code("auction_series"),
             {"code": code, "trading_date": date, "include_raw": include_raw},

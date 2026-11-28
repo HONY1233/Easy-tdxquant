@@ -98,9 +98,9 @@ pub fn mac_price_limits<'py>(
         return absent();
     }
     let leading = code.get_item(py.get_type::<PySlice>().call1((py.None(), 3))?)?;
-    let ratio: f64 = if module.getattr("_CHINEXT_CODES")?.contains(leading)? {
-        0.20
-    } else if code.call_method1("startswith", ("688",))?.is_truthy()? {
+    let ratio: f64 = if module.getattr("_CHINEXT_CODES")?.contains(leading)?
+        || code.call_method1("startswith", ("688",))?.is_truthy()?
+    {
         0.20
     } else if prefix(py, &code, &["43", "83", "87", "92"])? {
         0.30

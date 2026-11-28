@@ -87,7 +87,8 @@ pub fn f10_field_scope<'py>(
                 .call_method1("get", (&entry, 0))?,
         );
     }
-    let index = index.expect("scope index resolved by policy");
+    let index =
+        index.ok_or_else(|| pyo3::exceptions::PyRuntimeError::new_err("scope index is missing"))?;
     if index.ge(builtin(&module, "len")?.call1((&params,))?)? {
         return Ok(py.None());
     }

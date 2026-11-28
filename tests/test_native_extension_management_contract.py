@@ -455,7 +455,11 @@ def test_native_mac_ex_management_ping_keeps_login_factory(monkeypatch):
 def test_native_ex_management_probe_captures_callable_before_reading_hosts(monkeypatch):
     seen = []
     results = []
-    first = lambda *a, **k: seen.append((a, k)) or results
+
+    def first(*a, **k):
+        seen.append((a, k))
+        return results
+
     monkeypatch.setattr(ex, "probe_ex_hosts", first)
 
     class Client(ex.ExTdxClient):

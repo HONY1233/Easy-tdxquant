@@ -688,7 +688,10 @@ pub fn extension_client_connect<'py>(
         let conn = outcome.get_item(1)?;
         if domain == "mac" {
             let previous = client.getattr("_conn")?;
-            client.setattr("_host_index", index.expect("MAC index"))?;
+            let index = index.ok_or_else(|| {
+                pyo3::exceptions::PyRuntimeError::new_err("MAC host index is missing")
+            })?;
+            client.setattr("_host_index", index)?;
             client.setattr("_conn", &conn)?;
             if !previous.is_none() && !previous.is(&conn) {
                 previous.call_method0("close")?;

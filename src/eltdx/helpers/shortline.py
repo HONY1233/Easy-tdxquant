@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import weakref
-from collections import Counter
+from collections import Counter  # noqa: F401 - resolved by native shortline helper through globals()
 from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
 from datetime import date, datetime, time
@@ -12,11 +12,11 @@ from typing import TYPE_CHECKING, Any
 
 from eltdx.exceptions import (
     ResourceFormatError,
-    ShortlineIndicatorsNotReadyError,
+    ShortlineIndicatorsNotReadyError,  # noqa: F401 - resolved by native shortline helper through globals()
     TdxStatsDateError,
 )
 from eltdx.models import TdxStat2Row, TdxStatRow, TdxStatsResource
-from eltdx.protocol.unit import MARKET_TO_ID, normalize_code
+from eltdx.protocol.unit import MARKET_TO_ID, normalize_code  # noqa: F401 - native shortline helper resolves MARKET_TO_ID through globals()
 
 if TYPE_CHECKING:
     from eltdx.client import TdxClient

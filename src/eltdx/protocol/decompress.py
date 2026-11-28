@@ -1,3 +1,4 @@
+# ruff: noqa: F401 - compatibility imports preserved for native ABI and contract snapshot
 """有输出上限的 zlib 解压。
 
 行情帧头里的 ``unzipsize`` 只有 2 字节（``<IIIHH``），所以**任何**超过 65535

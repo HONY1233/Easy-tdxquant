@@ -214,7 +214,11 @@ def test_extension_hk_record_mapping_retains_seconds_nature_volume_and_per_mille
 def test_extension_hk_mapping_keeps_model_time_and_dynamic_divisor_order(monkeypatch):
     calls = []
     source = SimpleNamespace(hour=1, minute=2, second=3, price=20, volume=4, nature=9)
-    constructor = lambda **options: calls.append(("model", options)) or options
+
+    def constructor(**options):
+        calls.append(("model", options))
+        return options
+
     monkeypatch.setattr(hk, "MacTransaction", constructor)
 
     def clock(*args):
@@ -251,7 +255,10 @@ def test_extension_hk_pages_keep_remainder_offsets_duplicates_and_order(monkeypa
 def test_extension_hk_pages_date_conversion_still_occurs_for_nonpositive_count(monkeypatch):
     events = []
     monkeypatch.setattr(hk, "_to_ymd", lambda value: events.append(value) or 20261117)
-    execute = lambda command: pytest.fail("nonpositive requested count")
+
+    def execute(command):
+        pytest.fail("nonpositive requested count")
+
     assert hk._fetch_hk_transactions_sync(execute, 31, "x", "date", 0, 0) == []
     assert hk._fetch_hk_transactions_sync(execute, 31, "x", "date", 0, -1) == []
     assert events == ["date", "date"]

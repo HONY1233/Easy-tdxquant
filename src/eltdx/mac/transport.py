@@ -1,3 +1,4 @@
+# ruff: noqa: F401 - compatibility imports preserved for native ABI and contract snapshot
 """MAC 协议同步传输层（基于 socket）。
 
 :class:`MacConnection` 负责 TCP 连接、三步握手、请求发送与响应接收/解压。
@@ -237,7 +238,8 @@ def ping_mac_host(
     return load_native().extension_probe_success("mac", started, host, _MODULES[__name__])
 
 
-_native_probe_pair_latency = lambda item: item[1]
+def _native_probe_pair_latency(item):
+    return item[1]
 
 
 def ping_mac_all(

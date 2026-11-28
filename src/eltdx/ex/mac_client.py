@@ -1,3 +1,4 @@
+# ruff: noqa: F401 - compatibility imports preserved for native ABI and contract snapshot
 """MAC 协议扩展市场高层同步客户端 MacExClient。"""
 
 from __future__ import annotations

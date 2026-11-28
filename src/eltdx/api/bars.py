@@ -90,7 +90,7 @@ class BarApi(ApiBase):
         if self._native_services and type(all_pages) is bool and _native_bar_arguments(
             start, include_raw, max_pages if all_pages else None, bar_time
         ):
-            return self._transport.sdk_bars(
+            return getattr(self._transport, "sdk_bars")(
                 command_code("klines"),
                 dict(code=code, period=period, start=start,
                      count=page_size if all_pages else count, adjust=adjust,

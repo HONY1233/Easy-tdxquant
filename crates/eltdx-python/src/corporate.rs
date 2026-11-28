@@ -22,6 +22,8 @@ struct CapitalPage {
     payloads: Option<Py<PyAny>>,
 }
 
+type FinanceRecovery = (Vec<Py<PyAny>>, Vec<Py<PyAny>>, bool);
+
 impl LegacyCapitalSource for CapitalSource<'_> {
     type Response = CapitalPage;
     type Error = PyErr;
@@ -73,7 +75,7 @@ impl LegacyCapitalSource for CapitalSource<'_> {
         let blocks = response
             .blocks
             .as_ref()
-            .expect("recognized capital response")
+            .ok_or_else(|| PyRuntimeError::new_err("recognized capital response has no blocks"))?
             .bind(py);
         for block in blocks.try_iter()? {
             actual.append(block?.getattr("full_code")?)?;
@@ -88,7 +90,7 @@ impl LegacyCapitalSource for CapitalSource<'_> {
         for block in response
             .blocks
             .as_ref()
-            .expect("recognized capital response")
+            .ok_or_else(|| PyRuntimeError::new_err("recognized capital response has no blocks"))?
             .bind(py)
             .try_iter()?
         {
@@ -97,7 +99,7 @@ impl LegacyCapitalSource for CapitalSource<'_> {
         for raw in response
             .payloads
             .as_ref()
-            .expect("recognized capital response")
+            .ok_or_else(|| PyRuntimeError::new_err("recognized capital response has no payloads"))?
             .bind(py)
             .try_iter()?
         {
@@ -210,7 +212,7 @@ pub fn recover_finance<'py>(
     batch_type: Bound<'py, PyAny>,
     normalize: Bound<'py, PyAny>,
     protocol_error: Bound<'py, PyAny>,
-) -> PyResult<(Vec<Py<PyAny>>, Vec<Py<PyAny>>, bool)> {
+) -> PyResult<FinanceRecovery> {
     let indices = (0..codes.len()).collect::<Vec<_>>();
     let mut source = FinanceSource {
         codes,

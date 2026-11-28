@@ -1,3 +1,4 @@
+# ruff: noqa: F401 - compatibility imports preserved for native ABI and contract snapshot
 """Client for the 7615 TQLEX / F10 HTTP gateway."""
 
 from __future__ import annotations

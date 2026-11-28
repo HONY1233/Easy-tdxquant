@@ -135,6 +135,7 @@ pub fn map_money_flow(
 }
 
 #[pyfunction]
+#[allow(clippy::too_many_arguments)]
 pub fn adjustment_batch(
     py: Python<'_>,
     changes: Bound<'_, PyAny>,

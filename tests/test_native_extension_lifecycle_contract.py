@@ -488,10 +488,16 @@ def test_native_extension_retained_cleanup_reference_is_released_after_explicit_
         raise ValueError("candidate close")
 
     candidate.connect, candidate.close = connect, fail
-    connection._socket_factory = lambda *args: candidate
+    reference = weakref.ref(candidate)
+
+    def socket_factory(*args):
+        target = reference()
+        assert target is not None
+        return target
+
+    connection._socket_factory = socket_factory
     with pytest.raises(KeyboardInterrupt):
         connection.connect()
-    reference = weakref.ref(candidate)
     candidate.close = lambda: None
     connection._socket_factory = lambda *args: None
     connection.close()

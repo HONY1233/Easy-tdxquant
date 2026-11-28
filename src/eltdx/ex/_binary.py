@@ -1,3 +1,4 @@
+# ruff: noqa: F401 - compatibility imports preserved for native ABI and contract snapshot
 """扩展行情二进制解析辅助（带边界检查，失败抛 ProtocolError）。"""
 
 from __future__ import annotations
@@ -7,6 +8,7 @@ from sys import modules as _MODULES
 from typing import Any
 
 from eltdx.exceptions import ProtocolError
+
 
 
 def require_bytes(data: bytes | bytearray, pos: int, size: int, context: str) -> None:

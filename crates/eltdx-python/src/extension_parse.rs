@@ -106,6 +106,7 @@ fn text<'py>(
 ) -> PyResult<Bound<'py, PyAny>> {
     decode(py, raw, encoding)?.call_method1("rstrip", ("\0",))
 }
+#[allow(clippy::too_many_arguments)]
 fn append_model<'py>(
     py: Python<'py>,
     module: &Bound<'py, PyAny>,
@@ -226,14 +227,12 @@ fn directory_parse<'py>(
             module
                 .getattr("slice_bytes")?
                 .call1((body, &pos, 64, "ex instrument info record"))?
+        } else if add(py, &pos, 64)?.le(length(module, body)?)? {
+            module
+                .getattr("slice_bytes")?
+                .call1((body, &pos, 64, "ex markets record"))?
         } else {
-            if add(py, &pos, 64)?.le(length(module, body)?)? {
-                module
-                    .getattr("slice_bytes")?
-                    .call1((body, &pos, 64, "ex markets record"))?
-            } else {
-                break;
-            }
+            break;
         };
         if !info && raw.is_none() {
             break;
@@ -523,6 +522,7 @@ fn quotes_parse<'py>(
 }
 
 #[pyfunction]
+#[allow(clippy::too_many_arguments)]
 pub fn ex_quote_list_record<'py>(
     py: Python<'py>,
     kind: &str,

@@ -37,7 +37,7 @@ class MinuteApi(ApiBase):
         codes = [payload["code"]]
         if resolver is not None:
             resolver(name, None, codes)
-        result = self._transport.sdk_minutes(command_code(name), payload)
+        result = getattr(self._transport, "sdk_minutes")(command_code(name), payload)
         if resolver is not None:
             return resolver(name, result, codes)
         return result

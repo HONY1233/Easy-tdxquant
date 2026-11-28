@@ -1,3 +1,4 @@
+# ruff: noqa: F401 - compatibility imports preserved for native ABI and contract snapshot
 """通达信安装目录检测与路径解析。
 
 只处理本地文件系统路径，不涉及任何网络请求。

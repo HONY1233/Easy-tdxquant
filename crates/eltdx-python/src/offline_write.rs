@@ -141,6 +141,7 @@ pub fn offline_last_record_plan(
 }
 
 #[pyfunction]
+#[allow(clippy::too_many_arguments)]
 pub fn offline_prepare_append(
     py: Python<'_>,
     filepath: Bound<'_, PyAny>,

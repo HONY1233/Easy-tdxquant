@@ -1,3 +1,4 @@
+# ruff: noqa: F401 - compatibility imports preserved for native ABI and contract snapshot
 """扩展行情高层同步客户端 ExTdxClient。"""
 
 from __future__ import annotations

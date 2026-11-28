@@ -137,6 +137,7 @@ fn summarize<'py>(
 }
 
 #[pyfunction]
+#[allow(clippy::too_many_arguments)]
 pub fn mac_board_summary<'py>(
     py: Python<'py>,
     client: Bound<'py, PyAny>,

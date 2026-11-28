@@ -10,8 +10,10 @@ from collections.abc import Mapping, Sequence
 from sys import modules as _MODULES
 from typing import Any
 
-from .fields_mg_hk import is_mg_hk_entry as _is_mg_hk_entry
-from .fields_mg_hk import labels_for as _mg_hk_labels_for
+# The native ABI resolves these compatibility names through the module namespace.
+from .fields_mg_hk import is_mg_hk_entry as _is_mg_hk_entry  # noqa: F401
+from .fields_mg_hk import labels_for as _mg_hk_labels_for  # noqa: F401
+
 
 
 _COMPANY_PROFILE_LISTING = {

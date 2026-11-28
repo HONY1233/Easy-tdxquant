@@ -1,3 +1,4 @@
+# ruff: noqa: F401 - compatibility imports preserved for native ABI and contract snapshot
 """K 线时间戳语义对齐（``bar_time``）。
 
 通达信给出的分钟级 bar 时刻是 bar 的**开始**时间（上午最后一根 5 分钟 bar 标

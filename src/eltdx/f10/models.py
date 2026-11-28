@@ -1,3 +1,4 @@
+# ruff: noqa: F401 - compatibility imports preserved for native ABI and contract snapshot
 """Models for the 7615 TQLEX / F10 HTTP gateway."""
 
 from __future__ import annotations
@@ -7,6 +8,7 @@ from sys import modules as _MODULES
 from typing import Any
 
 from eltdx.protocol.unit import ID_TO_MARKET, normalize_code
+
 
 
 @dataclass(frozen=True, slots=True)

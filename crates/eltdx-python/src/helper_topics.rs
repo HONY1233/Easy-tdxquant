@@ -282,6 +282,7 @@ pub fn helper_resolve_topic<'py>(
 }
 
 #[pyfunction]
+#[allow(clippy::too_many_arguments)]
 pub fn helper_topic_stocks<'py>(
     py: Python<'py>,
     helper: Bound<'py, PyAny>,

@@ -27,7 +27,7 @@ class QuoteApi(ApiBase):
             resolver = self._price_resolver() if self._price_resolver is not None else None
             if resolver is not None:
                 resolver("snapshots", None, code_list)
-            items, missing = self._transport.sdk_snapshots(code_list)
+            items, missing = getattr(self._transport, "sdk_snapshots")(code_list)
             result = [item for item in items if item is not None]
             if resolver is not None:
                 result = resolver("snapshots", result, code_list)
@@ -88,7 +88,7 @@ class QuoteApi(ApiBase):
         resolver = self._price_resolver() if self._price_resolver is not None else None
         if resolver is not None:
             resolver(name, None, price_codes)
-        result = self._transport.sdk_quotes(command_code(name), payload)
+        result = getattr(self._transport, "sdk_quotes")(command_code(name), payload)
         return result if resolver is None else resolver(name, result, price_codes)
 
     def poll_push(self, *, timeout: float | None = 0.0, parse: bool = False):

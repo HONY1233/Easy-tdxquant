@@ -1,3 +1,4 @@
+# ruff: noqa: F401 - compatibility imports preserved for native ABI and contract snapshot
 """港股逐笔成交的协议路由辅助（同步）。"""
 
 from __future__ import annotations

@@ -10,6 +10,7 @@ fn exception(class: &Bound<'_, PyAny>, message: String) -> PyErr {
 }
 
 #[pyfunction]
+#[allow(clippy::too_many_arguments)]
 pub fn download_resource<'py>(
     py: Python<'py>,
     reader: Bound<'py, PyAny>,
@@ -64,11 +65,13 @@ pub fn download_resource<'py>(
                 if !host.is_none() {
                     expected_host = Some(host.unbind());
                 }
-            } else if !host.is_none() && !host.eq(expected_host.as_ref().unwrap().bind(py))? {
-                return Err(exception(
-                    &transport_error,
-                    "TDX server changed while downloading a multi-chunk file".into(),
-                ));
+            } else if let Some(expected_host) = expected_host.as_ref() {
+                if !host.is_none() && !host.eq(expected_host.bind(py))? {
+                    return Err(exception(
+                        &transport_error,
+                        "TDX server changed while downloading a multi-chunk file".into(),
+                    ));
+                }
             }
             Ok((content.unbind(), count))
         },

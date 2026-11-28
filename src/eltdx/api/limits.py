@@ -12,7 +12,7 @@ _NATIVE_LIMIT_EXECUTE = {kind: kind.execute for kind in (SocketTransport, Pooled
 class LimitApi(ApiBase):
     def special(self, *, start_index: int = 0):
         if self._native_ready():
-            return self._transport.sdk_special_limits({"start_index": start_index})
+            return getattr(self._transport, "sdk_special_limits")({"start_index": start_index})
         return self._execute("special_limits", start_index=start_index)
 
     def scan_special(self, *, start_index: int = 0, max_rows: int = 10000):

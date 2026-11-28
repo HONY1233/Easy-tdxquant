@@ -19,7 +19,8 @@ from eltdx.protocol.commands import command_code
 
 from .base import ApiBase
 
-_NATIVE_RESOURCE_EXECUTE = {kind: kind.execute for kind in
+_NATIVE_RESOURCE_EXECUTE: dict[type, object] = {
+    kind: kind.execute for kind in
                             (SocketTransport, PooledSocketTransport, PinnedTransportProxy)}
 
 
@@ -28,7 +29,7 @@ class ResourceApi(ApiBase):
         execute = self._transport.execute
         if (self._native_services and type(self._transport) in _NATIVE_RESOURCE_EXECUTE
                 and getattr(execute, "__func__", None) is _NATIVE_RESOURCE_EXECUTE[type(self._transport)]):
-            execute = self._transport.sdk_resource
+            execute = getattr(self._transport, "sdk_resource")
         return execute(command_code(command_name), payload)
 
     def read(self, path: str, *, offset: int = 0, size: int = DEFAULT_FILE_CHUNK_SIZE):

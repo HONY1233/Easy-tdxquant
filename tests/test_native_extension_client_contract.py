@@ -8,7 +8,7 @@ import pytest
 
 from eltdx.mac import client as mac
 from eltdx.mac.adjust import XdxrEvent
-from eltdx.mac.bitmap import FieldBit, PresetField
+from eltdx.mac.bitmap import PresetField
 from eltdx.mac.models import MacBar
 
 

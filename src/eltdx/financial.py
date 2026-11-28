@@ -1,3 +1,4 @@
+# ruff: noqa: F401 - compatibility imports preserved for native ABI and contract snapshot
 """专业财报文件下载与解析（连接通达信"计算服务器"）。
 
 财报数据不在普通行情主站上，而在通达信的"计算服务器"（calc host）上，通过

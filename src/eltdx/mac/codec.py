@@ -1,3 +1,4 @@
+# ruff: noqa: F401 - compatibility imports preserved for native ABI and contract snapshot
 """MAC 协议帧编解码。
 
 MAC 请求帧格式（10 字节头 + body），``struct "<BIBHH"``::

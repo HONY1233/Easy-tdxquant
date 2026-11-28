@@ -1,3 +1,4 @@
+# ruff: noqa: F401 - compatibility imports preserved for native ABI and contract snapshot
 """扩展行情响应帧编解码（16 字节帧头 + zlib，native 兼容策略）。"""
 
 from __future__ import annotations

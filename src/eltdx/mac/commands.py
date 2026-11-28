@@ -1,3 +1,4 @@
+# ruff: noqa: F401 - compatibility imports preserved for native ABI and contract snapshot
 """MAC 协议命令集合（仅同步：请求构造 + 响应解析，不含任何 IO）。
 
 移植自 easy_tdx ``mac/commands/*.py``（15 个命令模块）。为减少文件数量，

@@ -1,3 +1,4 @@
+# ruff: noqa: F401 - compatibility imports preserved for native ABI and contract snapshot
 """股本变迁数据读取（XOR 加密的 gbbq 文件）。"""
 
 from __future__ import annotations

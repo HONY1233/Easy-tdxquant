@@ -1,3 +1,4 @@
+# ruff: noqa: F401 - compatibility imports preserved for native ABI and contract snapshot
 """获取扩展行情历史K线（按日期范围）。"""
 
 from __future__ import annotations
